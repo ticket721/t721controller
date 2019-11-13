@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/introspection/ERC165.sol";
 import "erc2280/contracts/IERC2280.sol";
 import "erc2280/contracts/ERC2280Domain.sol";
 
-contract ERC2280Mock is IERC2280, ERC20, ERC20Detailed, ERC2280Domain, ERC165 {
+contract ERC2280Mock_v0 is IERC2280, ERC20, ERC20Detailed, ERC2280Domain, ERC165 {
 
     bytes4 constant public ERC2280_ERC165_SIGNATURE = 0x6941bcc3;
     // Equivalent of the following:
@@ -23,7 +23,7 @@ contract ERC2280Mock is IERC2280, ERC20, ERC20Detailed, ERC2280Domain, ERC165 {
 
     constructor (address _dai_address)
     ERC20Detailed("ERC2280Mock", "E2280M", 18)
-    ERC2280Domain("ERC2280Mock")
+    ERC2280Domain("ERC2280Mock", "1", 1)
     ERC165()
     public {
         _registerInterface(ERC2280_ERC165_SIGNATURE);

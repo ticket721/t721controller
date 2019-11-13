@@ -3,7 +3,7 @@ pragma solidity >=0.4.25 <0.6.0;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol";
 
-contract ERC20Mock is ERC20, ERC20Detailed {
+contract ERC20Mock_v0 is ERC20, ERC20Detailed {
     function mint(address target, uint256 amount) public {
         ERC20._mint(target, amount);
     }

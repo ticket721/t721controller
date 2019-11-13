@@ -1,8 +1,0 @@
-{
-  "manifestVersion": "2.2",
-  "contracts": {
-  },
-  "dependencies": {},
-  "name": "@ticket721/t721controller",
-  "version": "1.0.0"
-}
