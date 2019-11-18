@@ -8,7 +8,7 @@
     "dependencies": {
         "@openzeppelin/cli": "^2.5.3",
         "@openzeppelin/contracts": "2.3.0",
-        "@openzeppelin/upgrades": "^2.5.3",
+        "@openzeppelin/upgrades": "^2.6.0",
         "@ticket721/e712": "^0.2.0",
         "erc2280": "1.1.0",
         "truffle": "^5.0.35"
