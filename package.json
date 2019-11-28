@@ -11,7 +11,7 @@
         "@openzeppelin/upgrades": "^2.5.3",
         "@ticket721/e712": "^0.2.0",
         "erc2280": "1.1.0",
-        "truffle": "^5.0.35"
+        "truffle": "^5.1.2"
     },
     "devDependencies": {
         "@commitlint/cli": "^7.5.2",
