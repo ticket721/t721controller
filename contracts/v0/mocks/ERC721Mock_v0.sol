@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/token/ERC721/ERC721Enumerable.sol";
 *         The important part is the ability to have immutable transfer admins.
 *
 */
-contract ERC721Mock is ERC721, ERC721Enumerable {
+contract ERC721Mock_v0 is ERC721, ERC721Enumerable {
 
     event Mint(string indexed scope, address indexed owner, address indexed issuer, uint256 ticketId);
 
