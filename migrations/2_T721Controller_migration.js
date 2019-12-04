@@ -51,9 +51,10 @@ module.exports = async function(deployer, networkName, accounts) {
         const scope_index = scope.scope_index.toNumber();
 
         await T721Controller_v0Instance.setScopeIndex(scope_index);
-        await T721Controller_v0Instance.whitelistERC20(ERC20Instance.address, true);
-        await T721Controller_v0Instance.whitelistERC20(ERC2280Instance.address, true);
-        await T721Controller_v0Instance.whitelistERC2280(ERC2280Instance.address, true);
+        await T721Controller_v0Instance.setFeeCollector(accounts[9]);
+        await T721Controller_v0Instance.whitelistERC20(ERC20Instance.address, 10, 10);
+        await T721Controller_v0Instance.whitelistERC20(ERC2280Instance.address, 10, 10);
+        await T721Controller_v0Instance.whitelistERC2280(ERC2280Instance.address, 10, 10);
 
     }
 };

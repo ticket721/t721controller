@@ -139,8 +139,13 @@ module.exports = {
         expect((await ERC20.balanceOf(accounts[0])).toNumber()).to.equal(0);
         expect((await ERC2280.balanceOf(accounts[0])).toNumber()).to.equal(0);
 
-        expect((await T721Controller.balanceOf(id, ERC20.address)).toNumber()).to.equal(500);
-        expect((await T721Controller.balanceOf(id, ERC2280.address)).toNumber()).to.equal(1000);
+        const payment_1_fee = (await T721Controller.getERC20Fee(ERC20.address, 500)).toNumber();
+        const payment_2_fee = (await T721Controller.getERC20Fee(ERC2280.address, 1000)).toNumber();
+
+        expect((await T721Controller.balanceOf(id, ERC20.address)).toNumber()).to.equal(500 - payment_1_fee);
+        expect((await T721Controller.balanceOf(id, ERC2280.address)).toNumber()).to.equal(1000 - payment_2_fee);
+        expect((await ERC20.balanceOf(accounts[9])).toNumber()).to.equal(payment_1_fee);
+        expect((await ERC2280.balanceOf(accounts[9])).toNumber()).to.equal(payment_2_fee);
 
         let idx = 0;
         for (const log of rec.logs) {
