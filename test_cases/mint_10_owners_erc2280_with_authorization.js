@@ -163,8 +163,11 @@ module.exports = {
         expect((await ERC721.balanceOf(accounts[9])).toNumber()).to.equal(1);
 
         expect((await ERC2280.balanceOf(accounts[0])).toNumber()).to.equal(0);
+        const payment_1_fee = (await T721Controller.getERC2280Fee(ERC2280.address, 2000)).toNumber();
 
-        expect((await T721Controller.balanceOf(id, ERC2280.address)).toNumber()).to.equal(2000);
+        expect((await T721Controller.balanceOf(id, ERC2280.address)).toNumber()).to.equal(2000 - payment_1_fee);
+        expect((await ERC2280.balanceOf(accounts[9])).toNumber()).to.equal(payment_1_fee);
+
 
     }
 };

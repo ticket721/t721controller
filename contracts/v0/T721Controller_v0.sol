@@ -17,6 +17,7 @@ contract T721Controller_v0 is MintingAuthorizationDomain_v0 {
     public {
         t721 = ITicketForge_v0(_t721);
         owner = msg.sender;
+        fee_collector = msg.sender;
     }
 
     modifier ownerOnly() {
@@ -29,20 +30,74 @@ contract T721Controller_v0 is MintingAuthorizationDomain_v0 {
     }
 
     ITicketForge_v0 public t721;
-    mapping (address => bool) erc20_whitelist;
-    mapping (address => bool) erc2280_whitelist;
+
+    struct Currency {
+        bool active;
+        uint256 fix;
+        uint256 variable;
+    }
+
+    mapping (address => Currency) erc20_whitelist;
+    mapping (address => Currency) erc2280_whitelist;
     mapping (uint256 => bool) authorization_code_registry;
     uint256 public scope_index;
     address public owner;
+    address public fee_collector;
 
-    function whitelistERC20(address erc20_address, bool value) public ownerOnly {
-        require(erc20_whitelist[erc20_address] != value, "T721C::whitelistERC20 | useless transaction");
-        erc20_whitelist[erc20_address] = value;
+    function setFeeCollector(address fee_collector_address) public ownerOnly {
+        fee_collector = fee_collector_address;
     }
 
-    function whitelistERC2280(address erc2280_address, bool value) public ownerOnly {
-        require(erc2280_whitelist[erc2280_address] != value, "T721C::whitelistERC2280 | useless transaction");
-        erc2280_whitelist[erc2280_address] = value;
+    function whitelistERC20(address erc20_address, uint256 fix_fee, uint256 var_fee) public ownerOnly {
+        erc20_whitelist[erc20_address] = Currency({
+            active: true,
+            fix: fix_fee,
+            variable: var_fee
+            });
+    }
+
+    function removeERC20(address erc20_address) public ownerOnly {
+        require(erc20_whitelist[erc20_address].active == true, "T721C::removeERC20 | useless transaction");
+        erc20_whitelist[erc20_address].active = false;
+    }
+
+    function whitelistERC2280(address erc2280_address, uint256 fix_fee, uint256 var_fee) public ownerOnly {
+        erc2280_whitelist[erc2280_address] = Currency({
+            active: true,
+            fix: fix_fee,
+            variable: var_fee
+            });
+    }
+
+    function removeERC2280(address erc2280_address) public ownerOnly {
+        require(erc2280_whitelist[erc2280_address].active == true, "T721C::removeERC2280 | useless transaction");
+        erc2280_whitelist[erc2280_address].active = false;
+    }
+
+    function getERC20Fee(address erc20_address, uint256 amount) public view returns (uint256) {
+        require(amount >= erc20_whitelist[erc20_address].fix,
+            "T721C::getERC20Fee | paid amount is under fixed fee");
+
+        if (erc20_whitelist[erc20_address].variable != 0) {
+            return amount
+            .mul(erc20_whitelist[erc20_address].variable)
+            .div(1000)
+            .add(erc20_whitelist[erc20_address].fix);
+        }
+        return erc20_whitelist[erc20_address].fix;
+    }
+
+    function getERC2280Fee(address erc2280_address, uint256 amount) public view returns (uint256) {
+        require(amount >= erc2280_whitelist[erc2280_address].fix,
+            "T721C::getERC2280Fee | paid amount is under fixed fee");
+
+        if (erc2280_whitelist[erc2280_address].variable != 0) {
+            return amount
+            .mul(erc2280_whitelist[erc2280_address].variable)
+            .div(1000)
+            .add(erc2280_whitelist[erc2280_address].fix);
+        }
+        return erc2280_whitelist[erc2280_address].fix;
     }
 
     struct Category {
@@ -270,8 +325,8 @@ contract T721Controller_v0 is MintingAuthorizationDomain_v0 {
 
             // TODO prevent adding same currency twice
             for (uint price_idx = 0; price_idx < prices_count; ++price_idx) {
-                require(erc20_whitelist[addr[addr_idx + 1 + price_idx]] == true
-                || erc2280_whitelist[addr[addr_idx + 1 + price_idx]] == true,
+                require(erc20_whitelist[addr[addr_idx + 1 + price_idx]].active == true
+                || erc2280_whitelist[addr[addr_idx + 1 + price_idx]].active == true,
                     "T721C::registerCategories | unauthorized currency added");
                 require(nums[nums_idx + 6 + price_idx] != 0,
                     "T721C::registerCategories | invalid price 0");
@@ -384,7 +439,8 @@ contract T721Controller_v0 is MintingAuthorizationDomain_v0 {
         }
 
         for (uint price_idx = 0; price_idx < prices.length; ++price_idx) {
-            require(erc20_whitelist[currencies[price_idx]] == true || erc2280_whitelist[currencies[price_idx]] == true,
+            require(erc20_whitelist[currencies[price_idx]].active == true
+            || erc2280_whitelist[currencies[price_idx]].active == true,
                 "T721C::editCategory | unauthorized currency");
             if (cat.prices[currencies[price_idx]] == 0) {
                 cat.currencies.push(currencies[price_idx]);
@@ -421,16 +477,21 @@ contract T721Controller_v0 is MintingAuthorizationDomain_v0 {
         require(addr.length - addr_idx >= 1,
             "T721C::verifyERC20Payment | invalid number of addr arguments");
 
-        require(erc20_whitelist[addr[addr_idx]] == true,
+        address currency = addr[addr_idx];
+        uint256 amount = nums[nums_idx + 1];
+
+        require(erc20_whitelist[currency].active == true,
             "T721C::verifyERC20Payment | unauthorized erc20 currency");
 
-        require(cat.prices[addr[addr_idx]] != 0,
+        require(cat.prices[currency] != 0,
             "T721C::verifyERC20Payment | invalid currency");
 
-        require(IERC20(addr[addr_idx]).allowance(msg.sender, address(this)) >= nums[nums_idx + 1],
+        require(IERC20(currency).allowance(msg.sender, address(this)) >= amount,
             "T721C::verifyERC20Payment | erc20 allowance too low");
 
-        return ((nums[nums_idx + 1] * 100) / cat.prices[addr[addr_idx]]);
+        getERC20Fee(currency, amount);
+
+        return ((amount * 100) / cat.prices[currency]);
 
     }
 
@@ -456,17 +517,25 @@ contract T721Controller_v0 is MintingAuthorizationDomain_v0 {
         require(addr.length - addr_idx >= 1,
             "T721C::processERC20Payment | invalid number of addr arguments");
 
-        require(erc20_whitelist[addr[addr_idx]] == true,
+        Group storage grp = groups[group_id];
+        address currency = addr[addr_idx];
+        uint256 amount = nums[nums_idx + 1];
+
+        require(erc20_whitelist[currency].active == true,
             "T721C::processERC20Payment | unauthorized erc20 currency");
 
-        require(cat.prices[addr[addr_idx]] != 0,
+        require(cat.prices[currency] != 0,
             "T721C::processERC20Payment | invalid currency");
 
-        IERC20(addr[addr_idx]).transferFrom(msg.sender, address(this), nums[nums_idx + 1]);
+        IERC20(currency).transferFrom(msg.sender, address(this), amount);
+        uint256 fee = getERC20Fee(currency, amount);
+        IERC20(currency).transfer(fee_collector, fee);
 
-        groups[group_id].balances[addr[addr_idx]] = groups[group_id].balances[addr[addr_idx]].add(nums[nums_idx + 1]);
+        grp.balances[currency] = grp.balances[currency]
+        .add(amount)
+        .sub(fee);
 
-        return ((nums[nums_idx + 1] * 100) / cat.prices[addr[addr_idx]]);
+        return ((amount * 100) / cat.prices[currency]);
 
     }
 
@@ -493,7 +562,10 @@ contract T721Controller_v0 is MintingAuthorizationDomain_v0 {
         require(addr.length - addr_idx >= 1,
             "T721C::verifyERC2280Payment | invalid number of addr arguments");
 
-        require(erc2280_whitelist[addr[addr_idx]] == true,
+        address currency = addr[addr_idx];
+        uint256 amount = nums[nums_idx + 1];
+
+        require(erc2280_whitelist[currency].active == true,
             "T721C::verifyERC2280Payment | unauthorized erc2280 currency");
 
         //               ___ sig_idx           sig_idx + 65 bytes___ (ERC2280 transfer signature)
@@ -502,7 +574,7 @@ contract T721Controller_v0 is MintingAuthorizationDomain_v0 {
         require(signature.length - sig_idx >= 65,
             "T721C::verifyERC2280Payment | invalid signature size");
 
-        require(cat.prices[addr[addr_idx]] != 0,
+        require(cat.prices[currency] != 0,
             "T721C::verifyERC2280Payment | invalid currency");
 
         address[3] memory actors = [
@@ -516,14 +588,15 @@ contract T721Controller_v0 is MintingAuthorizationDomain_v0 {
         nums[nums_idx + 3],
         nums[nums_idx + 4],
         nums[nums_idx + 5],
-        nums[nums_idx + 1]
+        amount
         ];
 
         bytes memory erc2280_sig = BytesUtil_v0.slice(signature, sig_idx, sig_idx + 65);
 
-        IERC2280(addr[addr_idx]).verifyTransfer(actors, txparams, erc2280_sig);
+        IERC2280(currency).verifyTransfer(actors, txparams, erc2280_sig);
+        getERC2280Fee(currency, amount);
 
-        return ((nums[nums_idx + 1] * 100) / cat.prices[addr[addr_idx]]);
+        return ((amount * 100) / cat.prices[currency]);
 
     }
 
@@ -552,7 +625,11 @@ contract T721Controller_v0 is MintingAuthorizationDomain_v0 {
         require(addr.length - addr_idx >= 1,
             "T721C::processERC2280Payment | invalid number of addr arguments");
 
-        require(erc2280_whitelist[addr[addr_idx]] == true,
+        Group storage grp = groups[group_id];
+        address currency = addr[addr_idx];
+        uint256 amount = nums[nums_idx + 1];
+
+        require(erc2280_whitelist[currency].active == true,
             "T721C::processERC2280Payment | unauthorized erc2280 currency");
 
         //               ___ sig_idx           sig_idx + 65 bytes___ (ERC2280 transfer signature)
@@ -561,8 +638,9 @@ contract T721Controller_v0 is MintingAuthorizationDomain_v0 {
         require(signature.length - sig_idx >= 65,
             "T721C::processERC2280Payment | invalid signature size");
 
-        require(cat.prices[addr[addr_idx]] != 0,
+        require(cat.prices[currency] != 0,
             "T721C::processERC2280Payment | invalid currency");
+
 
         address[3] memory actors = [
         msg.sender,
@@ -575,15 +653,20 @@ contract T721Controller_v0 is MintingAuthorizationDomain_v0 {
         nums[nums_idx + 3],
         nums[nums_idx + 4],
         nums[nums_idx + 5],
-        nums[nums_idx + 1]
+        amount
         ];
 
         bytes memory erc2280_sig = BytesUtil_v0.slice(signature, sig_idx, sig_idx + 65);
 
-        IERC2280(addr[addr_idx]).signedTransfer(actors, txparams, erc2280_sig);
-        groups[group_id].balances[addr[addr_idx]] = groups[group_id].balances[addr[addr_idx]].add(nums[nums_idx + 1]);
+        IERC2280(currency).signedTransfer(actors, txparams, erc2280_sig);
+        uint256 fee = getERC2280Fee(currency, amount);
+        IERC2280(currency).transfer(fee_collector, fee);
 
-        return ((nums[nums_idx + 1] * 100) / cat.prices[addr[addr_idx]]);
+        grp.balances[currency] = grp.balances[currency]
+        .add(amount)
+        .sub(fee);
+
+        return ((amount * 100) / cat.prices[currency]);
 
     }
 

@@ -6,7 +6,7 @@ const expect = chai.expect;
 
 const { CONTRACT_NAME } = require('../test_cases/constants');
 
-const {useless_whitelisting} = require('../test_cases/useless_whitelisting');
+const {useless_unwhitelisting} = require('../test_cases/useless_unwhitelisting');
 
 const {createGroup} = require('../test_cases/createGroup');
 
@@ -112,7 +112,7 @@ contract('t721controller', (accounts) => {
 
     describe('Whitelisting', function () {
 
-        it('useless ERC20 & ERC2280 whitelisting', useless_whitelisting);
+        it('useless unwhitelisting', useless_unwhitelisting);
 
     });
 
