@@ -17,6 +17,9 @@ module.exports = {
         expect((await T721Controller.getERC20Fee(ERC20.address, 100)).toNumber()).to.equal(10);
         expect((await T721Controller.getERC2280Fee(ERC2280.address, 100)).toNumber()).to.equal(10);
 
+        await expect(T721Controller.getERC20Fee(ERC20.address, 9)).to.eventually.be.rejectedWith('T721C::getERC20Fee | paid amount is under fixed fee');
+        await expect(T721Controller.getERC2280Fee(ERC2280.address, 9)).to.eventually.be.rejectedWith('T721C::getERC2280Fee | paid amount is under fixed fee');
+
         await T721Controller.removeERC20(ERC20.address);
         await T721Controller.removeERC2280(ERC2280.address);
 
