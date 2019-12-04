@@ -1,3 +1,5 @@
+const { BigNumber } = require('ethers/utils');
+
 const ethers = require('ethers');
 const strhex = require('string-hex');
 const {EIP712Signer} = require('@ticket721/e712');
@@ -39,6 +41,18 @@ const getEthersT721CContract = async (wallet) => {
     const t721c_ethers = await t721c_factory.attach(truffle_devdai.address);
     return t721c_ethers.connect(connected_wallet)
 };
+
+const getEthersT721ACContract = async (wallet) => {
+    const t721c = artifacts.require('T721AttachmentsController_v0');
+    const provider = new ethers.providers.Web3Provider(web3.currentProvider);
+    const connected_wallet = new ethers.Wallet(wallet.privateKey, provider);
+    const truffle_devdai = await t721c.deployed();
+
+    const t721c_factory = new ethers.ContractFactory(t721c.abi, t721c.deployedBytecode, wallet, wallet);
+    const t721c_ethers = await t721c_factory.attach(truffle_devdai.address);
+    return t721c_ethers.connect(connected_wallet)
+};
+
 
 const snapshot = () => {
     return new Promise((ok, ko) => {
@@ -105,8 +119,60 @@ const catToEditArgs = (category) => {
         prices.push(category.prices[address]);
     }
 
-    return [nums, category.authorization, strToB32(category.hierarchy), prices, currencies]
-}
+    return [nums, category.authorization, category.attachment, strToB32(category.hierarchy), prices, currencies]
+};
+
+const attachmentToArgs = (attachments, group_id, category_idx) => {
+    const att = [group_id];
+    const nums = [category_idx];
+    const addr = [];
+    const prices = {};
+    let sig = '0x';
+
+    for (const attachment of attachments) {
+        att.push(strToB32(attachment.name));
+        nums.push(Object.keys(attachment.prices).length);
+
+        for (const curr of Object.keys(attachment.prices)) {
+            nums.push(attachment.prices[curr].mode);
+            nums.push(attachment.prices[curr].price);
+            addr.push(curr);
+
+            if (prices[curr] === undefined) {
+                prices[curr] = {
+                    mode: attachment.prices[curr].mode,
+                    total: 0
+                }
+            }
+
+            prices[curr].total += attachment.prices[curr].price;
+
+            if (attachment.prices[curr].mode === 2) {
+                sig = `${sig}${attachment.prices[curr].sig.slice(2)}`;
+            }
+
+        }
+
+
+        if (attachment.sig) {
+            sig = `${sig}${attachment.sig.slice(2)}`;
+            nums.push(attachment.code);
+        }
+
+        nums.push(attachment.amount);
+    }
+
+    const totals = [];
+    const currencies = [];
+
+    for (const curr of Object.keys(prices)) {
+        totals.push(prices[curr].mode);
+        totals.push(prices[curr].total);
+        currencies.push(curr);
+    }
+
+    return [att, nums, addr, sig, [...nums, Object.keys(prices).length,...totals], [...addr, ...currencies]];
+};
 
 const mintToArgs = (currencies, owners) => {
     const nums = [];
@@ -123,10 +189,6 @@ const mintToArgs = (currencies, owners) => {
             nums.push(currency.amount);
         } else if (currency.type === 2) {
             nums.push(currency.amount);
-            nums.push(currency.nonce);
-            nums.push(currency.gasLimit);
-            nums.push(currency.gasPrice);
-            nums.push(currency.reward);
 
             sig = `${sig}${currency.sig.slice(2)}`;
         }
@@ -161,6 +223,7 @@ const catToArgs = (categories) => {
         nums.push(Object.keys(cat.prices).length);
 
         addr.push(cat.authorization);
+        addr.push(cat.attachment);
 
         for (const address of Object.keys(cat.prices)) {
             addr.push(address);
@@ -201,7 +264,7 @@ const MintingAuthorization = [
 class MintingAuthorizer extends EIP712Signer {
     constructor(chain_id, address) {
         super({
-                name: 'T721 Controller Minting Authorization',
+                name: 'T721 Controller',
                 version: '0',
                 chainId: chain_id,
                 verifyingContract: address
@@ -210,6 +273,84 @@ class MintingAuthorizer extends EIP712Signer {
         );
     }
 }
+
+const Attachment = [
+    {
+        name: 'group',
+        type: 'bytes32'
+    },
+    {
+        name: 'category',
+        type: 'uint256'
+    },
+    {
+        name: 'attachment',
+        type: 'bytes32'
+    },
+    {
+        name: 'amount',
+        type: 'uint256'
+    },
+    {
+        name: 'prices',
+        type: 'bytes'
+    },
+    {
+        name: 'currencies',
+        type: 'bytes'
+    },
+    {
+        name: 'code',
+        type: 'uint256'
+    }
+];
+
+class AttachmentAuthorizer extends EIP712Signer {
+    constructor(chain_id, address) {
+        super({
+                name: 'T721 Attachments Controller',
+                version: '0',
+                chainId: chain_id,
+                verifyingContract: address
+            },
+            ['Attachment', Attachment]
+        );
+    }
+}
+
+const encodedU256 = (num) => {
+    const hexed = (new BigNumber(num)).toHexString().slice(2);
+    return `${"0".repeat(64 - hexed.length)}${hexed}`;
+};
+
+const injectAttachmentSigs = async (attachments, chain_id, address, group_id, category_idx, wallet) => {
+
+    const signer = new AttachmentAuthorizer(chain_id, address);
+
+    for (const att of attachments) {
+        const payload = {
+            group: group_id,
+            category: category_idx,
+            attachment: strToB32(att.name),
+            amount: att.amount,
+            prices: "0x",
+            currencies: "0x",
+            code: att.code
+        };
+
+        for (const curr of Object.keys(att.prices)) {
+
+            payload.prices = `${payload.prices}${encodedU256(att.prices[curr].price)}`;
+            payload.currencies = `${payload.currencies}${curr.slice(2)}`;
+        }
+
+        const formatted_payload = signer.generatePayload(payload, 'Attachment');
+        const sig = await signer.sign(wallet.privateKey, formatted_payload);
+        att.sig = sig.hex;
+
+    }
+
+};
 
 module.exports = {
     ZERO,
@@ -223,5 +364,9 @@ module.exports = {
     mintToArgs,
     strToB32,
     MintingAuthorizer,
-    getEthersT721CContract
+    AttachmentAuthorizer,
+    getEthersT721CContract,
+    getEthersT721ACContract,
+    attachmentToArgs,
+    injectAttachmentSigs
 };

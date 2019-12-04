@@ -1,4 +1,4 @@
-const { CONTRACT_NAME } = require('./constants');
+const { T721C_CONTRACT_NAME } = require('./constants');
 
 module.exports = {
     addAdmin: async function addAdmin() {
@@ -6,7 +6,7 @@ module.exports = {
         const {accounts, expect} = this;
         const controllers = 'core@1.0.0:esport@1.0.0';
 
-        const T721Controller = this.contracts[CONTRACT_NAME];
+        const T721Controller = this.contracts[T721C_CONTRACT_NAME];
 
         const res = await T721Controller.createGroup(controllers, {from: accounts[0]});
         const id = res.logs[0].args.id;

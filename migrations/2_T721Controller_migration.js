@@ -1,4 +1,5 @@
 const T721Controller_v0 = artifacts.require('T721Controller_v0');
+const T721AttachmentsController_v0 = artifacts.require('T721AttachmentsController_v0');
 const ERC20Mock_v0 = artifacts.require("ERC20Mock_v0");
 const ERC721Mock_v0 = artifacts.require("ERC721Mock_v0");
 const ERC2280Mock_v0 = artifacts.require("ERC2280Mock_v0");
@@ -16,7 +17,7 @@ const getArtifact = (name) => {
 }
 
 module.exports = async function(deployer, networkName, accounts) {
-    if (['test', 'soliditycoverage'].indexOf(networkName) === -1) {
+    if (['test_T721AttachmentsController.js', 'soliditycoverage'].indexOf(networkName) === -1) {
 
         if (hasArtifact('ticketforge')) {
 
@@ -46,15 +47,30 @@ module.exports = async function(deployer, networkName, accounts) {
 
         const T721Controller_v0Instance = await T721Controller_v0.deployed();
 
+        await deployer.deploy(T721AttachmentsController_v0, T721Controller_v0Instance.address, ERC721Instance.address, network_id);
+
+        const T721AttachmentsController_v0Instance = await T721AttachmentsController_v0.deployed();
+
         await ERC721Instance.createScope("t721_test", ZADDRESS, [], [T721Controller_v0Instance.address]);
         const scope = await ERC721Instance.getScope("t721_test");
         const scope_index = scope.scope_index.toNumber();
 
         await T721Controller_v0Instance.setScopeIndex(scope_index);
         await T721Controller_v0Instance.setFeeCollector(accounts[9]);
+        console.log(`T721C: whitelisting erc20 ${ERC20Instance.address}`);
         await T721Controller_v0Instance.whitelistERC20(ERC20Instance.address, 10, 10);
+        console.log(`T721C: whitelisting erc20 ${ERC2280Instance.address}`);
         await T721Controller_v0Instance.whitelistERC20(ERC2280Instance.address, 10, 10);
+        console.log(`T721C: whitelisting erc2280 ${ERC2280Instance.address}`);
         await T721Controller_v0Instance.whitelistERC2280(ERC2280Instance.address, 10, 10);
+
+        await T721AttachmentsController_v0Instance.setFeeCollector(accounts[9]);
+        console.log(`T721AC: whitelisting erc20 ${ERC20Instance.address}`);
+        await T721AttachmentsController_v0Instance.whitelistERC20(ERC20Instance.address, 0, 3);
+        console.log(`T721AC: whitelisting erc20 ${ERC2280Instance.address}`);
+        await T721AttachmentsController_v0Instance.whitelistERC20(ERC2280Instance.address, 0, 3);
+        console.log(`T721AC: whitelisting erc2280 ${ERC2280Instance.address}`);
+        await T721AttachmentsController_v0Instance.whitelistERC2280(ERC2280Instance.address, 0, 3);
 
     }
 };

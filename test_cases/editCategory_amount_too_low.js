@@ -1,4 +1,4 @@
-const { CONTRACT_NAME, ZADDRESS } = require('./constants');
+const { T721C_CONTRACT_NAME, ZADDRESS } = require('./constants');
 const { catToArgs, strToB32, mintToArgs, MintingAuthorizer, catToEditArgs } = require('./utils');
 const {Wallet} = require('ethers');
 
@@ -9,7 +9,7 @@ module.exports = {
         const controllers = 'core@1.0.0:esport@1.0.0';
 
         const {ERC721, ERC20, ERC2280} = this.contracts;
-        const T721Controller = this.contracts[CONTRACT_NAME];
+        const T721Controller = this.contracts[T721C_CONTRACT_NAME];
         const authorizer = Wallet.createRandom();
 
         const res = await T721Controller.createGroup(controllers, {from: accounts[0]});
@@ -31,6 +31,7 @@ module.exports = {
             resale_start: resale_start,
             resale_end: resale_end,
             authorization: authorizer.address,
+            attachment: ZADDRESS,
             prices: {
                 [ERC20.address]: 100,
                 [ERC2280.address]: 200
@@ -130,9 +131,9 @@ module.exports = {
             amount: 9
         };
 
-        const [edit_nums, auth, hierarchy, prices, curr] = catToEditArgs(categories[0]);
+        const [edit_nums, auth, attachment, hierarchy, prices, curr] = catToEditArgs(categories[0]);
 
-        return expect(T721Controller.editCategory(id, 0, edit_nums, auth, hierarchy, prices, curr)).to.eventually.be.rejectedWith('T721C::editCategory | cannot change ticket amount under number of sold tickets');
+        return expect(T721Controller.editCategory(id, 0, edit_nums, auth, attachment, hierarchy, prices, curr)).to.eventually.be.rejectedWith('T721C::editCategory | cannot change ticket amount under number of sold tickets');
 
     }
 };

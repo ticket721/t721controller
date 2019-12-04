@@ -1,4 +1,4 @@
-const { CONTRACT_NAME, ZADDRESS } = require('./constants');
+const { T721C_CONTRACT_NAME, ZADDRESS } = require('./constants');
 const { catToArgs, strToB32, mintToArgs, MintingAuthorizer, getEthersT721CContract } = require('./utils');
 const {Wallet} = require('ethers');
 const {ERC2280Signer} = require('@ticket721/e712');
@@ -10,7 +10,7 @@ module.exports = {
         const controllers = 'core@1.0.0:esport@1.0.0';
 
         const {ERC721, ERC20, ERC2280} = this.contracts;
-        const T721Controller = this.contracts[CONTRACT_NAME];
+        const T721Controller = this.contracts[T721C_CONTRACT_NAME];
         const authorizer = Wallet.createRandom();
 
         const res = await T721Controller.createGroup(controllers, {from: accounts[0]});
@@ -32,6 +32,7 @@ module.exports = {
             resale_start: resale_start,
             resale_end: resale_end,
             authorization: authorizer.address,
+            attachment: ZADDRESS,
             prices: {
                 [ERC2280.address]: 200
             }
@@ -167,7 +168,6 @@ module.exports = {
 
         expect((await T721Controller.balanceOf(id, ERC2280.address)).toNumber()).to.equal(2000 - payment_1_fee);
         expect((await ERC2280.balanceOf(accounts[9])).toNumber()).to.equal(payment_1_fee);
-
 
     }
 };
