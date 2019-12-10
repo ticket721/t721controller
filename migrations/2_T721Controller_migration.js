@@ -17,7 +17,7 @@ const getArtifact = (name) => {
 }
 
 module.exports = async function(deployer, networkName, accounts) {
-    if (['test_T721AttachmentsController.js', 'soliditycoverage'].indexOf(networkName) === -1) {
+    if (['test', 'soliditycoverage'].indexOf(networkName) === -1) {
 
         if (hasArtifact('ticketforge')) {
 
