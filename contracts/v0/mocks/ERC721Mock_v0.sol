@@ -138,28 +138,16 @@ contract ERC721Mock_v0 is ERC721, ERC721Enumerable {
      *  @param scopeIndex Index of desired scope
      *
      */
-    function mint(address to, uint256 scopeIndex) external mintCheck(scopeIndex) {
+    function mint(address to, uint256 scopeIndex)
+    external
+    mintCheck(scopeIndex)
+    returns (uint256) {
         _mint(to, ticket_id_counter);
         ticketInfos[ticket_id_counter] = Ticket({scope: scopeIndex});
         emit Mint(scopeByIndex[scopeIndex], to, msg.sender, ticket_id_counter);
         emit Transfer(msg.sender, to, ticket_id_counter);
         ++ticket_id_counter;
-    }
-
-    /**
-     * @dev Transfers the ownership of a given token ID to another address.
-     * Usage of this method is discouraged, use `safeTransferFrom` whenever possible.
-     * Requires the msg.sender to be the owner, approved, or operator.
-     *
-     * @param from current owner of the token
-     * @param to address to receive the ownership of the given token ID
-     * @param ticketId uint256 ID of the token to be transferred
-     */
-    function transferFrom(address from, address to, uint256 ticketId) public {
-        //solhint-disable-next-line max-line-length
-        require(_isApprovedOrOwnerOrScopeAdmin(msg.sender, ticketId), "ERC721: transfer caller is not owner, approved or scope admin");
-
-        _transferFrom(from, to, ticketId);
+        return ticket_id_counter - 1;
     }
 
     /**

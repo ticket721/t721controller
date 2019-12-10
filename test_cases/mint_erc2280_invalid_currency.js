@@ -1,4 +1,4 @@
-const { CONTRACT_NAME, ZADDRESS } = require('./constants');
+const { T721C_CONTRACT_NAME, ZADDRESS } = require('./constants');
 const { catToArgs, strToB32, mintToArgs, MintingAuthorizer, getEthersT721CContract } = require('./utils');
 const {Wallet} = require('ethers');
 const {ERC2280Signer} = require('@ticket721/e712');
@@ -10,7 +10,7 @@ module.exports = {
         const controllers = 'core@1.0.0:esport@1.0.0';
 
         const {ERC721, ERC20, ERC2280} = this.contracts;
-        const T721Controller = this.contracts[CONTRACT_NAME];
+        const T721Controller = this.contracts[T721C_CONTRACT_NAME];
         const authorizer = Wallet.createRandom();
 
         const res = await T721Controller.createGroup(controllers, {from: accounts[0]});
@@ -32,6 +32,7 @@ module.exports = {
             resale_start: resale_start,
             resale_end: resale_end,
             authorization: ZADDRESS,
+            attachment: ZADDRESS,
             prices: {
                 [ERC20.address]: 200
             }
@@ -130,8 +131,8 @@ module.exports = {
 
         await ERC2280.mint(buyer.address, 200 * 10, {from: accounts[0]});
         const T721CE = await getEthersT721CContract(buyer, T721Controller);
-        await expect(T721CE.functions.verifyMint(id, 0, mint_nums, mint_addr, mint_sig)).to.eventually.be.rejectedWith('T721C::verifyERC2280Payment | invalid currency');
-        return expect(T721CE.functions.mint(id, 0, mint_nums, mint_addr, mint_sig, {gasLimit: 3000000})).to.eventually.be.rejectedWith('T721C::processERC2280Payment | invalid currency');
+        await expect(T721CE.functions.verifyMint(id, 0, mint_nums, mint_addr, mint_sig)).to.eventually.be.rejectedWith('T721C::verifyERC2280MintPayment | invalid currency');
+        return expect(T721CE.functions.mint(id, 0, mint_nums, mint_addr, mint_sig, {gasLimit: 3000000})).to.eventually.be.rejectedWith('T721C::processERC2280MintPayment | invalid currency');
 
     }
 };

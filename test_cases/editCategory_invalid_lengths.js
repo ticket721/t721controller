@@ -1,4 +1,4 @@
-const { CONTRACT_NAME, ZADDRESS } = require('./constants');
+const { T721C_CONTRACT_NAME, ZADDRESS } = require('./constants');
 const { catToArgs, strToB32, catToEditArgs } = require('./utils');
 
 module.exports = {
@@ -8,7 +8,7 @@ module.exports = {
         const controllers = 'core@1.0.0:esport@1.0.0';
 
         const {ERC20, ERC2280} = this.contracts;
-        const T721Controller = this.contracts[CONTRACT_NAME];
+        const T721Controller = this.contracts[T721C_CONTRACT_NAME];
 
         const res = await T721Controller.createGroup(controllers, {from: accounts[0]});
         const id = res.logs[0].args.id;
@@ -29,6 +29,7 @@ module.exports = {
             resale_start: resale_start,
             resale_end: resale_end,
             authorization: ZADDRESS,
+            attachment: ZADDRESS,
             prices: {
                 [ERC2280.address]: 200
             }
@@ -63,15 +64,16 @@ module.exports = {
             resale_start: resale_start + 100,
             resale_end: resale_end + 100,
             authorization: accounts[1],
+            attachment: accounts[1],
             prices: {
                 [ERC20.address]: 200,
                 [ERC2280.address]: 100
             }
         };
 
-        const [edit_nums, auth, hierarchy, prices, currencies] = catToEditArgs(categories[0]);
+        const [edit_nums, auth, attachment, hierarchy, prices, currencies] = catToEditArgs(categories[0]);
         const edited_currencies = currencies.slice(1);
 
-        return expect(T721Controller.editCategory(id, 0, edit_nums, auth, hierarchy, prices, edited_currencies)).to.be.rejectedWith('T721C::editCategory | invalid prices and currencies argument');
+        return expect(T721Controller.editCategory(id, 0, edit_nums, auth, attachment, hierarchy, prices, edited_currencies)).to.be.rejectedWith('T721C::editCategory | invalid prices and currencies argument');
     }
 };

@@ -4,7 +4,7 @@ const { revert, snapshot } = require('../test_cases/utils');
 chai.use(chaiAsPromised);
 const expect = chai.expect;
 
-const { CONTRACT_NAME } = require('../test_cases/constants');
+const { T721C_CONTRACT_NAME, T721AC_CONTRACT_NAME }  = require('../test_cases/constants');
 
 const {useless_unwhitelisting} = require('../test_cases/useless_unwhitelisting');
 
@@ -68,11 +68,19 @@ const {mint_invalid_authorization_signature} = require('../test_cases/mint_inval
 const {mint_useless_signature} = require('../test_cases/mint_useless_signature');
 const {mint_useless_code} = require('../test_cases/mint_useless_code');
 
-contract('t721controller', (accounts) => {
+const {getTicketAffiliation} = require('../test_cases/getTicketAffiliation');
+const {setFeeCollector_from_non_owner} = require('../test_cases/setFeeCollector_from_non_owner');
+
+const {fixAttachments_with_authorization} = require('../test_cases/fixAttachments_with_authorization');
+
+contract('T721Controller_v0', (accounts) => {
 
     before(async function () {
-        const T721ControllerArtifact = artifacts.require(CONTRACT_NAME);
+        const T721ControllerArtifact = artifacts.require(T721C_CONTRACT_NAME);
         const T721ControllerInstance = await T721ControllerArtifact.deployed();
+
+        const T721AttachmentsControllerArtifact = artifacts.require(T721AC_CONTRACT_NAME);
+        const T721AttachmentsControllerInstance = await T721AttachmentsControllerArtifact.deployed();
 
         const ERC20MockArtifact = artifacts.require('ERC20Mock_v0');
         const ERC2280MockArtifact = artifacts.require('ERC2280Mock_v0');
@@ -87,7 +95,8 @@ contract('t721controller', (accounts) => {
         //setScopeIndex(scope.scope_index.toNumber());
 
         this.contracts = {
-            [CONTRACT_NAME]: T721ControllerInstance,
+            [T721C_CONTRACT_NAME]: T721ControllerInstance,
+            [T721AC_CONTRACT_NAME]: T721AttachmentsControllerInstance,
             ERC721: ERC721Instance,
             ERC20: ERC20Instance,
             ERC2280: ERC2280Instance
@@ -104,27 +113,9 @@ contract('t721controller', (accounts) => {
         this.snap_id = await snapshot();
     });
 
-    describe('Scope Index', function () {
+    describe('Attachments', function () {
 
-        it('setScopeIndex unauthorized account', setScopeIndex_unauthorized_account);
-
-    });
-
-    describe('Whitelisting', function () {
-
-        it('useless unwhitelisting', useless_unwhitelisting);
-
-    });
-
-    describe('Group', function () {
-
-        it('createGroup', createGroup);
-        it('addAdmin', addAdmin);
-        it('addAdmin from non owner', addAdmin_from_non_owner);
-        it('addAdmin already admin', addAdmin_already_admin);
-        it('removeAdmin', removeAdmin);
-        it('removeAdmin from non owner', removeAdmin_from_non_owner);
-        it('removeAdmin not already admin', removeAdmin_not_already_admin);
+        it('fixAttachments with authorization', fixAttachments_with_authorization);
 
     });
 
@@ -182,6 +173,37 @@ contract('t721controller', (accounts) => {
         it('mint invalid authorization signature', mint_invalid_authorization_signature);
         it('mint useless signature', mint_useless_signature);
         it('mint useless code', mint_useless_code);
+
+    });
+
+    describe('Utils', function () {
+
+        it('getTicketAffiliation', getTicketAffiliation);
+        it('setFeeCollector from non owner', setFeeCollector_from_non_owner);
+
+    });
+
+    describe('Scope Index', function () {
+
+        it('setScopeIndex unauthorized account', setScopeIndex_unauthorized_account);
+
+    });
+
+    describe('Whitelisting', function () {
+
+        it('useless unwhitelisting', useless_unwhitelisting);
+
+    });
+
+    describe('Group', function () {
+
+        it('createGroup', createGroup);
+        it('addAdmin', addAdmin);
+        it('addAdmin from non owner', addAdmin_from_non_owner);
+        it('addAdmin already admin', addAdmin_already_admin);
+        it('removeAdmin', removeAdmin);
+        it('removeAdmin from non owner', removeAdmin_from_non_owner);
+        it('removeAdmin not already admin', removeAdmin_not_already_admin);
 
     });
 

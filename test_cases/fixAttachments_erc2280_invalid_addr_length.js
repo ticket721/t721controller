@@ -1,0 +1,212 @@
+const { T721C_CONTRACT_NAME, T721AC_CONTRACT_NAME, ZADDRESS } = require('./constants');
+const { catToArgs, strToB32, mintToArgs, MintingAuthorizer, attachmentToArgs, injectAttachmentSigs, getEthersT721ACContract } = require('./utils');
+const {Wallet} = require('ethers');
+const {ERC2280Signer} = require('@ticket721/e712');
+
+module.exports = {
+    fixAttachments_erc2280_invalid_addr_length: async function fixAttachment_erc2280_invalid_addr_length() {
+
+        const {accounts, expect} = this;
+        const controllers = 'core@1.0.0:esport@1.0.0';
+
+        const {ERC721, ERC20, ERC2280} = this.contracts;
+        const T721Controller = this.contracts[T721C_CONTRACT_NAME];
+        const T721AttachmentsController = this.contracts[T721AC_CONTRACT_NAME];
+        const authorizer = Wallet.createRandom();
+        const attachment = Wallet.createRandom();
+        const buyer = Wallet.createRandom();
+        await web3.eth.sendTransaction({from: accounts[0], to: buyer.address, value: web3.utils.toWei('1', 'ether')});
+        const ET721AttachmentsController = await getEthersT721ACContract(buyer);
+
+        await T721Controller.whitelistERC20(ERC20.address, 0, 0);
+        await T721Controller.whitelistERC20(ERC2280.address, 0, 0);
+        await T721Controller.whitelistERC2280(ERC2280.address, 0, 0);
+
+        const res = await T721Controller.createGroup(controllers, {from: accounts[0]});
+        const id = res.logs[0].args.id;
+
+        const categories = [];
+
+        const sale_start = Math.floor(Date.now() / 1000) + 1000;
+        const sale_end = Math.floor(Date.now() / 1000) + 100000;
+        const resale_start = Math.floor(Date.now() / 1000) + 1000;
+        const resale_end = Math.floor(Date.now() / 1000) + 100000;
+
+        categories.push({
+            name: `regular`,
+            hierarchy: 'root',
+            amount: 100,
+            sale_start: sale_start,
+            sale_end: sale_end,
+            resale_start: resale_start,
+            resale_end: resale_end,
+            authorization: authorizer.address,
+            attachment: attachment.address,
+            prices: {
+                [ERC20.address]: 100,
+                [ERC2280.address]: 200
+            }
+        });
+
+        const [nums, addr, byte_data] = catToArgs(categories);
+        const gasLimit = (await web3.eth.getBlock("latest")).gasLimit;
+
+        await T721Controller.registerCategories(id, nums, addr, byte_data, {gas: gasLimit});
+
+        const currencies = [
+            {
+                type: 1,
+                address: ERC20.address,
+                amount: 500
+            },
+            {
+                type: 1,
+                address: ERC2280.address,
+                amount: 1000
+            }
+        ];
+
+        const owners = [
+            {
+                address: buyer.address,
+                code: 1
+            },
+            {
+                address: accounts[1],
+                code: 2
+            },
+            {
+                address: accounts[2],
+                code: 3
+            },
+            {
+                address: accounts[3],
+                code: 4
+            },
+            {
+                address: accounts[4],
+                code: 5
+            },
+            {
+                address: accounts[5],
+                code: 6
+            },
+            {
+                address: accounts[6],
+                code: 7
+            },
+            {
+                address: accounts[7],
+                code: 8
+            },
+            {
+                address: accounts[8],
+                code: 9
+            },
+            {
+                address: accounts[9],
+                code: 10
+            },
+        ];
+
+        const network_id = await web3.eth.net.getId();
+        const signer = new MintingAuthorizer(network_id, T721Controller.address);
+
+        for (let owner_idx = 0; owner_idx < owners.length; ++owner_idx) {
+            const payload = signer.generatePayload({
+                code: owners[owner_idx].code,
+                emitter: authorizer.address,
+                minter: owners[owner_idx].address,
+                group: id,
+                category: strToB32('regular')
+            }, 'MintingAuthorization');
+
+            const signature = await signer.sign(authorizer.privateKey, payload);
+
+            owners[owner_idx].sig = signature.hex;
+
+        }
+
+        const [mint_nums, mint_addr, mint_sig] = mintToArgs(currencies, owners);
+
+        await ERC20.mint(accounts[0], 100 * 5);
+        await ERC2280.mint(accounts[0], 200 * 5);
+        await ERC20.approve(T721Controller.address, 100 * 5, {from: accounts[0]});
+        await ERC2280.approve(T721Controller.address, 200 * 5, {from: accounts[0]});
+        await T721Controller.verifyMint(id, 0, mint_nums, mint_addr, mint_sig, {from: accounts[0]});
+        await T721Controller.mint(id, 0, mint_nums, mint_addr, mint_sig, {from: accounts[0]});
+
+        expect((await ERC721.balanceOf(buyer.address)).toNumber()).to.equal(1);
+        expect((await ERC721.balanceOf(accounts[1])).toNumber()).to.equal(1);
+        expect((await ERC721.balanceOf(accounts[2])).toNumber()).to.equal(1);
+        expect((await ERC721.balanceOf(accounts[3])).toNumber()).to.equal(1);
+        expect((await ERC721.balanceOf(accounts[4])).toNumber()).to.equal(1);
+        expect((await ERC721.balanceOf(accounts[5])).toNumber()).to.equal(1);
+        expect((await ERC721.balanceOf(accounts[6])).toNumber()).to.equal(1);
+        expect((await ERC721.balanceOf(accounts[7])).toNumber()).to.equal(1);
+        expect((await ERC721.balanceOf(accounts[8])).toNumber()).to.equal(1);
+        expect((await ERC721.balanceOf(accounts[9])).toNumber()).to.equal(1);
+
+        const ticket_id = (await ERC721.tokenOfOwnerByIndex(buyer.address, 0)).toNumber();
+
+        const attachments = [
+            {
+                name: 'beer',
+                amount: 2,
+                code: 1,
+                prices: {
+                    [ERC2280.address]: {
+                        price: 100,
+                        mode: 2
+                    }
+                }
+            }
+        ];
+
+        const domain_name = 'ERC2280Mock';
+        const domain_version = '1';
+        const domain_chain_id = 1;
+        const domain_contract = ERC2280.address;
+
+        const transfer_recipient = T721AttachmentsController.address;
+
+        const esigner = new ERC2280Signer(domain_name, domain_version, domain_chain_id, domain_contract);
+
+        let nonce = 0;
+        for (const att of attachments) {
+
+            for (const curr of Object.keys(att.prices)) {
+                const curr_infos = att.prices[curr];
+
+                if (curr_infos.mode === 2) {
+
+                    const sig = await esigner.transfer(transfer_recipient, curr_infos.price, {
+                        signer: buyer.address,
+                        relayer: T721AttachmentsController.address
+                    }, {
+                        nonce: nonce,
+                        gasLimit: 0,
+                        gasPrice: 0,
+                        reward: 0
+                    }, buyer.privateKey);
+
+                    nonce += 1;
+
+                    curr_infos.sig = sig.hex;
+
+                }
+
+            }
+
+        }
+
+        await injectAttachmentSigs(attachments, network_id, T721AttachmentsController.address, id, 0, attachment);
+        const [att_names, att_nums, att_addr, att_sig, att_test_nums, att_test_addr] = attachmentToArgs(attachments, id, 0);
+        const err_addr = [];
+
+        await ERC2280.mint(buyer.address, 100);
+        await expect(ET721AttachmentsController.functions.verifyFixAttachments(ticket_id, att_names, att_test_nums, err_addr, att_sig, {from: buyer.address})).to.eventually.be.rejectedWith('T721AC::verifyERC2280AttachmentPayment | invalid addr argument count');
+        return expect(ET721AttachmentsController.functions.fixAttachments(ticket_id, att_names, att_nums, err_addr, att_sig, {gasLimit: 3000000})).to.eventually.be.rejectedWith('T721AC::processERC2280AttachmentPayment | invalid addr argument count')
+
+    }
+};

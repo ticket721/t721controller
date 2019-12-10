@@ -1,4 +1,4 @@
-const { CONTRACT_NAME, ZADDRESS } = require('./constants');
+const { T721C_CONTRACT_NAME, ZADDRESS } = require('./constants');
 const { catToArgs, strToB32, mintToArgs, MintingAuthorizer } = require('./utils');
 const {Wallet} = require('ethers');
 
@@ -9,7 +9,7 @@ module.exports = {
         const controllers = 'core@1.0.0:esport@1.0.0';
 
         const {ERC721, ERC20, ERC2280} = this.contracts;
-        const T721Controller = this.contracts[CONTRACT_NAME];
+        const T721Controller = this.contracts[T721C_CONTRACT_NAME];
         const authorizer = Wallet.createRandom();
 
         const res = await T721Controller.createGroup(controllers, {from: accounts[0]});
@@ -31,6 +31,7 @@ module.exports = {
             resale_start: resale_start,
             resale_end: resale_end,
             authorization: authorizer.address,
+            attachment: ZADDRESS,
             prices: {
                 [ERC20.address]: 100,
                 [ERC2280.address]: 200
@@ -153,8 +154,19 @@ module.exports = {
             expect(log.args.category_name.toLowerCase()).to.equal(strToB32('regular').toLowerCase());
             expect(log.args.owner.toLowerCase()).to.equal(owners[idx].address.toLowerCase());
             expect(log.args.buyer.toLowerCase()).to.equal(accounts[0].toLowerCase());
+            const ticket_id = (await ERC721.tokenOfOwnerByIndex(owners[idx].address, 0)).toNumber();
+            expect(log.args.ticket_id.toNumber()).to.equal(ticket_id);
             ++idx;
         }
+
+        await expect(T721Controller.withdraw(id, ERC20.address, 500 - payment_1_fee, 3, accounts[0])).to.eventually.be.rejectedWith('T721C::withdraw | invalid withdraw mode');
+        await expect(T721Controller.withdraw(id, ERC20.address, 500, 1, accounts[0])).to.eventually.be.rejectedWith('T721C::withdraw | balance too low');
+
+        await T721Controller.withdraw(id, ERC20.address, 500 - payment_1_fee, 1, accounts[0]);
+        await T721Controller.withdraw(id, ERC2280.address, 1000 - payment_2_fee, 2, accounts[0]);
+
+        expect((await ERC20.balanceOf(accounts[0])).toNumber()).to.equal(500 - payment_1_fee);
+        expect((await ERC2280.balanceOf(accounts[0])).toNumber()).to.equal(1000 - payment_2_fee);
 
     }
 };

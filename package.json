@@ -22,8 +22,9 @@
         "coveralls": "^3.0.6",
         "ethers": "^4.0.38",
         "husky": "^1.3.1",
+        "lcov-result-merger": "^3.1.0",
         "solhint": "^2.3.0",
-        "solidity-coverage": "^0.7.0-beta.2",
+        "solidity-coverage": "^0.7.0-beta.3",
         "string-hex": "^1.0.0"
     },
     "editorconfig-cli": [
@@ -34,7 +35,10 @@
     ],
     "scripts": {
         "test:truffle": "truffle test",
-        "test:coverage": "truffle run coverage",
+        "test:coverage:t721ac": "truffle run coverage --file='./test/test_T721AttachmentsController.js' --solcoverjs ./.solcover.t721ac.js",
+        "test:coverage:t721c": "truffle run coverage --file='./test/test_T721Controller.js' --solcoverjs ./.solcover.t721c.js",
+        "test:coverage:merge_reports": "lcov-result-merger './coverage/**/lcov.info' './coverage/lcov.info'",
+        "test:coverage": "npm run test:coverage:t721c && npm run test:coverage:t721ac && npm run test:coverage:merge_reports",
         "test:editorconfig": "editorconfig-cli",
         "test:lint": "solhint contracts/**/*.sol",
         "coverage:upload": "cat ./coverage/lcov.info | coveralls",
