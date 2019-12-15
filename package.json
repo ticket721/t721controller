@@ -10,7 +10,7 @@
         "@openzeppelin/contracts": "2.3.0",
         "@ticket721/e712": "^0.2.0",
         "erc2280": "1.2.0",
-        "truffle": "^5.1.2"
+        "truffle": "^5.1.4"
     },
     "devDependencies": {
         "@commitlint/cli": "^7.5.2",
