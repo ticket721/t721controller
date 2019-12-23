@@ -1,4 +1,4 @@
-pragma solidity >=0.4.25 <0.6.0;
+pragma solidity 0.5.15;
 import "./SigUtil_v0.sol";
 
 contract T721ControllerDomain_v0 {
