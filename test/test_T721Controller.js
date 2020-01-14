@@ -19,6 +19,7 @@ const {removeAdmin} = require('../test_cases/removeAdmin');
 const {removeAdmin_from_non_owner} = require('../test_cases/removeAdmin_from_non_owner');
 const {removeAdmin_not_already_admin} = require('../test_cases/removeAdmin_not_already_admin');
 
+const {groupDeterministicId} = require('../test_cases/groupDeterministicId');
 const {registerCategories} = require('../test_cases/registerCategories');
 const {registerCategories_disable_resale} = require('../test_cases/registerCategories_disable_resale');
 const {registerCategories_invalid_nums} = require('../test_cases/registerCategories_invalid_nums');
@@ -121,6 +122,7 @@ contract('T721Controller_v0', (accounts) => {
 
     describe('Categories', function () {
 
+        it('groupDeterministicId', groupDeterministicId);
         it('registerCategories', registerCategories);
         it('registerCategories disable resale', registerCategories_disable_resale);
         it('registerCategories invalid nums', registerCategories_invalid_nums);
