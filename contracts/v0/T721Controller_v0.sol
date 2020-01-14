@@ -68,6 +68,7 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
     uint256                             public scope_index;
     address                             public owner;
     address                             public fee_collector;
+    mapping (address => uint)           public group_nonce;
     mapping (uint256 => Affiliation)    public tickets;
     mapping (bytes32 => Group)          public groups;
     mapping (address => Currency)       public erc20_whitelist;
@@ -258,18 +259,36 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
     }
 
     //
+    // @notice Utility to get next group ID
+    //
+    function getNextGroupId() external view returns (bytes32) {
+
+        return keccak256(abi.encode(
+                current_id,
+                msg.sender,
+                group_nonce[msg.sender]
+            ));
+    }
+
+    //
     // @notice Create a group that can contain several categories
     //
     // @param controllers string containing all used controllers
     //
     function createGroup(string calldata controllers) external {
-        bytes32 selected_id = keccak256(abi.encode(current_id));
+        bytes32 selected_id = keccak256(abi.encode(
+                current_id,
+                msg.sender,
+                group_nonce[msg.sender]
+            ));
 
         Group storage grp = groups[selected_id];
         grp.controllers = controllers;
         grp.owner = msg.sender;
 
         current_id = selected_id;
+
+        group_nonce[msg.sender] += 1;
 
         emit NewGroup(selected_id, msg.sender, controllers);
 
