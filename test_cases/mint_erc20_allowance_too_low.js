@@ -1,5 +1,5 @@
 const { T721C_CONTRACT_NAME, ZADDRESS } = require('./constants');
-const { catToArgs, strToB32, mintToArgs, MintingAuthorizer } = require('./utils');
+const { catToArgs, mintToArgs } = require('./utils');
 const {Wallet} = require('ethers');
 
 module.exports = {
@@ -8,9 +8,8 @@ module.exports = {
         const {accounts, expect} = this;
         const controllers = 'core@1.0.0:esport@1.0.0';
 
-        const {ERC721, ERC20, ERC2280} = this.contracts;
+        const {ERC20, Dai} = this.contracts;
         const T721Controller = this.contracts[T721C_CONTRACT_NAME];
-        const authorizer = Wallet.createRandom();
 
         const res = await T721Controller.createGroup(controllers, {from: accounts[0]});
         const id = res.logs[0].args.id;
@@ -34,7 +33,7 @@ module.exports = {
             attachment: ZADDRESS,
             prices: {
                 [ERC20.address]: 100,
-                [ERC2280.address]: 200
+                [Dai.address]: 200
             }
         });
 
@@ -45,7 +44,6 @@ module.exports = {
 
         const currencies = [
             {
-                type: 1,
                 address: ERC20.address,
                 amount: 1000
             }
@@ -88,7 +86,7 @@ module.exports = {
 
         await ERC20.mint(accounts[0], 100 * 10);
         await ERC20.approve(T721Controller.address, 100 * 10 - 1, {from: accounts[0]});
-        await expect(T721Controller.verifyMint(id, 0, mint_nums, mint_addr, mint_sig, {from: accounts[0]})).to.eventually.be.rejectedWith('T721C::verifyERC20MintPayment | erc20 allowance too low');
+        await expect(T721Controller.verifyMint(id, 0, mint_nums, mint_addr, mint_sig, {from: accounts[0]})).to.eventually.be.rejectedWith('T721C::verifyMintPayment | erc20 allowance too low');
         return expect(T721Controller.mint(id, 0, mint_nums, mint_addr, mint_sig, {from: accounts[0]})).to.eventually.be.rejected;
     }
 };

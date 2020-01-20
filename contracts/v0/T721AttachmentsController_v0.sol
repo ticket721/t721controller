@@ -30,8 +30,7 @@ contract T721AttachmentsController_v0 is T721AttachmentsControllerDomain_v0 {
     ITicketForge_v0                                     public t721;
     address                                             public owner;
     address                                             public fee_collector;
-    mapping (address => Currency)                       public erc20_whitelist;
-    mapping (address => Currency)                       public erc2280_whitelist;
+    mapping (address => Currency)                       public whitelist;
     mapping (uint256 => bool)                           public authorization_code_registry;
     mapping (bytes32 => mapping (address => uint256))   public balances;
 
@@ -70,8 +69,8 @@ contract T721AttachmentsController_v0 is T721AttachmentsControllerDomain_v0 {
     //
     // @param var_fee Percent to collect on every payment made with this currency. Max is 1000 (100%).
     //
-    function whitelistERC20(address erc20_address, uint256 fix_fee, uint256 var_fee) public ownerOnly {
-        erc20_whitelist[erc20_address] = Currency({
+    function whitelistCurrency(address _address, uint256 fix_fee, uint256 var_fee) public ownerOnly {
+        whitelist[_address] = Currency({
             active: true,
             fix: fix_fee,
             variable: var_fee
@@ -83,37 +82,9 @@ contract T721AttachmentsController_v0 is T721AttachmentsControllerDomain_v0 {
     //
     // @param erc20_address Address to remove from the payment whitelist
     //
-    function removeERC20(address erc20_address) public ownerOnly {
-        require(erc20_whitelist[erc20_address].active == true, "T721AC::removeERC20 | useless transaction");
-        erc20_whitelist[erc20_address].active = false;
-    }
-
-    //
-    // @notice Add an ERC2280 address to the payment whitelist and sets the fix and variable fee values
-    //
-    // @param erc20_address Address to whitelist for ERC2280 payments
-    //
-    // @param fix_fee Fix amount to collect on every payment made with this currency
-    //
-    // @param var_fee Percent to collect on every payment made with this currency. Max is 1000 (100%).
-    //
-    function whitelistERC2280(address erc2280_address, uint256 fix_fee, uint256 var_fee) public ownerOnly {
-        erc2280_whitelist[erc2280_address] = Currency({
-            active: true,
-            fix: fix_fee,
-            variable: var_fee
-            });
-    }
-
-    //
-    // @notice Remove an ERC2280 address from the payment whitelist
-    //
-    // @param erc20_address Address to remove from the payment whitelist
-    //
-    function removeERC2280(address erc2280_address) public ownerOnly {
-        require(erc2280_whitelist[erc2280_address].active == true,
-            "T721AC::removeERC2280 | useless transaction");
-        erc2280_whitelist[erc2280_address].active = false;
+    function removeCurrency(address _address) public ownerOnly {
+        require(whitelist[_address].active == true, "T721AC::removeCurrency | useless transaction");
+        whitelist[_address].active = false;
     }
 
     //
@@ -151,15 +122,11 @@ contract T721AttachmentsController_v0 is T721AttachmentsControllerDomain_v0 {
     //
     // @param target Withdraw toward this address
     //
-    function withdraw(bytes32 group_id, address currency, uint256 amount, uint256 mode, address target)
+    function withdraw(bytes32 group_id, address currency, uint256 amount, address target)
     external groupOwnerOrAdminOnly(group_id) {
         require(balances[group_id][currency] >= amount, "T721AC::withdraw | balance too low");
 
-        if (mode == 1 || mode == 2) { // ERC20 & ERC2280
-            IERC20(currency).transfer(target, amount);
-        } else {
-            revert("T721AC::withdraw | invalid withdraw mode");
-        }
+        IERC20(currency).transfer(target, amount);
     }
 
     //
@@ -169,152 +136,56 @@ contract T721AttachmentsController_v0 is T721AttachmentsControllerDomain_v0 {
     //
     // @param amount Total amount to tax
     //
-    function getERC20Fee(address erc20_address, uint256 amount) public view returns (uint256) {
-        require(amount >= erc20_whitelist[erc20_address].fix,
-            "T721AC::getERC20Fee | paid amount is under fixed fee");
+    function getFee(address _address, uint256 amount) public view returns (uint256) {
+        require(amount >= whitelist[_address].fix,
+            "T721AC::getFee | paid amount is under fixed fee");
 
-        if (erc20_whitelist[erc20_address].variable != 0) {
+        if (whitelist[_address].variable != 0) {
             return amount
-            .mul(erc20_whitelist[erc20_address].variable)
+            .mul(whitelist[_address].variable)
             .div(1000)
-            .add(erc20_whitelist[erc20_address].fix);
+            .add(whitelist[_address].fix);
         }
-        return erc20_whitelist[erc20_address].fix;
-    }
-
-    //
-    // @notice Retrieve the fee to apply for a specific ERC2280 currency and amount
-    //
-    // @param erc20_address Currency to use for fee computation
-    //
-    // @param amount Total amount to tax
-    //
-    function getERC2280Fee(address erc2280_address, uint256 amount) public view returns (uint256) {
-        require(amount >= erc2280_whitelist[erc2280_address].fix,
-            "T721AC::getERC2280Fee | paid amount is under fixed fee");
-
-        if (erc2280_whitelist[erc2280_address].variable != 0) {
-            return amount
-            .mul(erc2280_whitelist[erc2280_address].variable)
-            .div(1000)
-            .add(erc2280_whitelist[erc2280_address].fix);
-        }
-        return erc2280_whitelist[erc2280_address].fix;
+        return whitelist[_address].fix;
     }
 
     //
     // @notice Verify ERC20 Payment arguments
     //
-    function verifyERC20AttachmentPayment(
+    function verifyAttachmentPayment(
         uint256[] memory nums,
         address[] memory addr,
         uint256 nums_idx,
         uint256 addr_idx
     ) internal view {
-        require(nums.length - nums_idx >= 2, "T721AC::verifyERC20AttachmentPayment | invalid nums argument count");
-        require(addr.length - addr_idx >= 1, "T721AC::verifyERC20AttachmentPayment | invalid addr argument count");
+        require(nums.length - nums_idx >= 1, "T721AC::verifyAttachmentPayment | invalid nums argument count");
+        require(addr.length - addr_idx >= 1, "T721AC::verifyAttachmentPayment | invalid addr argument count");
 
         address currency = addr[addr_idx];
-        uint256 amount = nums[nums_idx + 1];
-        getERC20Fee(currency, amount);
+        uint256 amount = nums[nums_idx];
+        getFee(currency, amount);
     }
 
     //
     // @notice Process ERC20 Payment arguments
     //
-    function processERC20AttachmentPayment(
+    function processAttachmentPayment(
         bytes32 group_id,
         uint256[] memory nums,
         address[] memory addr,
         uint256 nums_idx,
         uint256 addr_idx
     ) internal {
-        require(nums.length - nums_idx >= 2, "T721AC::processERC20AttachmentPayment | invalid nums argument count");
-        require(addr.length - addr_idx >= 1, "T721AC::processERC20AttachmentPayment | invalid addr argument count");
+        require(nums.length - nums_idx >= 1, "T721AC::processAttachmentPayment | invalid nums argument count");
+        require(addr.length - addr_idx >= 1, "T721AC::processAttachmentPayment | invalid addr argument count");
 
         address currency = addr[addr_idx];
-        uint256 amount = nums[nums_idx + 1];
-        uint256 fee = getERC20Fee(currency, amount);
+        uint256 amount = nums[nums_idx];
+        uint256 fee = getFee(currency, amount);
 
         IERC20(currency).transferFrom(msg.sender, address(this), amount);
         IERC20(currency).transfer(fee_collector, fee);
         balances[group_id][currency] = balances[group_id][currency].add(amount).sub(fee);
-    }
-
-    //
-    // @notice Verify ERC2280 Payment arguments
-    //
-    function verifyERC2280AttachmentPayment(
-        uint256[] memory nums,
-        address[] memory addr,
-        bytes memory signature,
-        uint256 nums_idx,
-        uint256 addr_idx,
-        uint256 sig_idx
-    ) internal view {
-        require(nums.length - nums_idx >= 2,
-            "T721AC::verifyERC2280AttachmentPayment | invalid nums argument count");
-        require(addr.length - addr_idx >= 1,
-            "T721AC::verifyERC2280AttachmentPayment | invalid addr argument count");
-        require(signature.length - sig_idx >= 65,
-            "T721AC::verifyERC2280AttachmentPayment | invalid signature argument count");
-
-        address currency = addr[addr_idx];
-        uint256 amount = nums[nums_idx + 1];
-        getERC2280Fee(currency, amount);
-
-        // Cannot verify erc2280 payment. Multiple transactions with multiple nonces can be submitted, but
-        // erc2280 contract will only be able to verify the one with current nonce.
-    }
-
-    //
-    // @notice Process ERC2280 Payment arguments
-    //
-    function processERC2280AttachmentPayment(
-        bytes32 group_id,
-        uint256[] memory nums,
-        address[] memory addr,
-        bytes memory signature,
-        uint256 nums_idx,
-        uint256 addr_idx,
-        uint256 sig_idx
-    ) internal {
-        require(nums.length - nums_idx >= 2,
-            "T721AC::processERC2280AttachmentPayment | invalid nums argument count");
-        require(addr.length - addr_idx >= 1,
-            "T721AC::processERC2280AttachmentPayment | invalid addr argument count");
-        require(signature.length - sig_idx >= 65,
-            "T721AC::processERC2280AttachmentPayment | invalid signature argument count");
-
-        address currency = addr[addr_idx];
-        uint256 amount = nums[nums_idx + 1];
-        uint256 fee = getERC2280Fee(currency, amount);
-
-        {
-            uint256 nonce = IERC2280(currency).nonceOf(msg.sender);
-
-            address[3] memory actors = [
-            msg.sender,
-            address(this),
-            address(this)
-            ];
-
-            uint256[5] memory txparams = [
-            nonce,
-            0,
-            0,
-            0,
-            amount
-            ];
-
-            bytes memory erc2280_sig = BytesUtil_v0.slice(signature, sig_idx, 65);
-            IERC2280(currency).signedTransfer(actors, txparams, erc2280_sig);
-            IERC2280(currency).transfer(fee_collector, fee);
-
-        }
-
-        balances[group_id][currency] = balances[group_id][currency].add(amount).sub(fee);
-
     }
 
     //
@@ -343,16 +214,13 @@ contract T721AttachmentsController_v0 is T721AttachmentsControllerDomain_v0 {
     //
     //           ```
     //           |_category_idx_______________| > Group id of the ticket
-    //           | payment_count = 2          | > Using 2 payment methods for attachment purchase
-    //           | payment_mode = 1 (erc20)   | \ Config for payment 1/2 of attachment 1/2
-    //           | price                      | /
-    //           | payment_mode = 1 (erc20)   | \ Config for payment 2/2 of attachment 1/2
-    //           | price                      | /
+    //           | payment_count = 2          | > Using 2 currencies for attachment purchase
+    //           | price                      | > Price paid with first currency
+    //           | price                      | > Price paid with second currency
     //           | code                       | \ Amount and code of attachment to add for attachment purchase 1/2
     //           |_amount_____________________| /
-    //           | payment_count = 1          | > Using 2 payment methods for attachment purchase
-    //           | payment_mode = 1 (erc2280) | \ Config for payment 1/1 of attachment 2/2
-    //           | price                      | /
+    //           | payment_count = 1          | > Using 1 currency for attachment purchase
+    //           | price                      | > Price paid with first (and only) currency
     //           | code                       | \ Amount and code of attachment to add for attachment purchase 2/2
     //           |_amount_____________________| /
     //           ```
@@ -368,12 +236,11 @@ contract T721AttachmentsController_v0 is T721AttachmentsControllerDomain_v0 {
     // @param signature Signature argument. Each segment represents a 65 bytes signature.
     //
     //           ```
-    //           | erc2280_payment_signature | > Signature for payment 1/1 of attachment 2/2
     //           | attachment_signature_1    | > Authorization signature for attachment 1/2
     //           | attachment_signature_2    | > Authorization signature for attachment 2/2
     //           ```
     //
-    function verifyFixAttachments(
+    function verifyAttachments(
         uint256 ticket_id,
         bytes32[] memory b32,
         uint256[] memory nums,
@@ -405,28 +272,14 @@ contract T721AttachmentsController_v0 is T721AttachmentsControllerDomain_v0 {
             bytes memory currencies = "";
 
             for (uint256 prices_idx = 0; prices_idx < currency_count; ++prices_idx) {
-                if (nums[nums_idx] == 1) {
 
-                    verifyERC20AttachmentPayment(nums, addr, nums_idx, addr_idx);
-                    prices = BytesUtil_v0.concat(prices, BytesUtil_v0.toBytes(nums[nums_idx + 1]));
-                    currencies = BytesUtil_v0.concat(currencies, BytesUtil_v0.toBytes(addr[addr_idx]));
+                verifyAttachmentPayment(nums, addr, nums_idx, addr_idx);
+                prices = BytesUtil_v0.concat(prices, BytesUtil_v0.toBytes(nums[nums_idx]));
+                currencies = BytesUtil_v0.concat(currencies, BytesUtil_v0.toBytes(addr[addr_idx]));
 
-                    nums_idx += 2;
-                    addr_idx += 1;
+                nums_idx += 1;
+                addr_idx += 1;
 
-                } else if (nums[nums_idx] == 2) {
-
-                    verifyERC2280AttachmentPayment(nums, addr, signature, nums_idx, addr_idx, sig_idx);
-                    prices = BytesUtil_v0.concat(prices, BytesUtil_v0.toBytes(nums[nums_idx + 1]));
-                    currencies = BytesUtil_v0.concat(currencies, BytesUtil_v0.toBytes(addr[addr_idx]));
-
-                    nums_idx += 2;
-                    addr_idx += 1;
-                    sig_idx += 65;
-
-                } else {
-                    revert("T721AC::verifyAttachments | unknown payment method");
-                }
             }
 
             if (attachment_authorization != address(0)) {
@@ -474,13 +327,9 @@ contract T721AttachmentsController_v0 is T721AttachmentsControllerDomain_v0 {
         nums_idx += 1;
 
         for (uint256 idx = 0; idx < total_currencies; ++idx) {
-            if (nums[nums_idx + idx * 2] == 1) {
-                require(IERC20(addr[addr_idx + idx]).allowance(msg.sender, address(this)) >=
-                    nums[nums_idx + idx * 2 + 1],
-                    "T721AC::verifyAttachments | erc20 allowance too low");
-            } else if (nums[nums_idx + idx * 2] != 2) {
-                revert("T721AC::verifyFixAttachments | invalid mode for allowance check");
-            }
+            require(IERC20(addr[addr_idx + idx]).allowance(msg.sender, address(this)) >=
+                nums[nums_idx + idx],
+                "T721AC::verifyAttachments | erc20 allowance too low");
         }
 
         if (attachment_authorization != address(0)) {
@@ -512,16 +361,13 @@ contract T721AttachmentsController_v0 is T721AttachmentsControllerDomain_v0 {
     //
     //           ```
     //           |_category_idx_______________| > Group id of the ticket
-    //           | payment_count = 2          | > Using 2 payment methods for attachment purchase
-    //           | payment_mode = 1 (erc20)   | \ Config for payment 1/2 of attachment 1/2
-    //           | price                      | /
-    //           | payment_mode = 1 (erc20)   | \ Config for payment 2/2 of attachment 1/2
-    //           | price                      | /
+    //           | payment_count = 2          | > Using 2 currencies for attachment purchase
+    //           | price                      | > Price paid with first currency
+    //           | price                      | > Price paid with second currency
     //           | code                       | \ Amount and code of attachment to add for attachment purchase 1/2
     //           |_amount_____________________| /
-    //           | payment_count = 1          | > Using 2 payment methods for attachment purchase
-    //           | payment_mode = 1 (erc2280) | \ Config for payment 1/1 of attachment 2/2
-    //           | price                      | /
+    //           | payment_count = 1          | > Using 1 currency for attachment purchase
+    //           | price                      | > Price paid with first (and only) currency
     //           | code                       | \ Amount and code of attachment to add for attachment purchase 2/2
     //           |_amount_____________________| /
     //           ```
@@ -537,7 +383,6 @@ contract T721AttachmentsController_v0 is T721AttachmentsControllerDomain_v0 {
     // @param signature Signature argument. Each segment represents a 65 bytes signature.
     //
     //           ```
-    //           | erc2280_payment_signature | > Signature for payment 1/1 of attachment 2/2
     //           | attachment_signature_1    | > Authorization signature for attachment 1/2
     //           | attachment_signature_2    | > Authorization signature for attachment 2/2
     //           ```
@@ -573,28 +418,13 @@ contract T721AttachmentsController_v0 is T721AttachmentsControllerDomain_v0 {
             bytes memory currencies = "";
 
             for (uint256 prices_idx = 0; prices_idx < currency_count; ++prices_idx) {
-                if (nums[nums_idx] == 1) {
 
-                    processERC20AttachmentPayment(b32[0], nums, addr, nums_idx, addr_idx);
-                    prices = BytesUtil_v0.concat(prices, BytesUtil_v0.toBytes(nums[nums_idx + 1]));
-                    currencies = BytesUtil_v0.concat(currencies, BytesUtil_v0.toBytes(addr[addr_idx]));
+                processAttachmentPayment(b32[0], nums, addr, nums_idx, addr_idx);
+                prices = BytesUtil_v0.concat(prices, BytesUtil_v0.toBytes(nums[nums_idx]));
+                currencies = BytesUtil_v0.concat(currencies, BytesUtil_v0.toBytes(addr[addr_idx]));
 
-                    nums_idx += 2;
-                    addr_idx += 1;
-
-                } else if (nums[nums_idx] == 2) {
-
-                    processERC2280AttachmentPayment(b32[0], nums, addr, signature, nums_idx, addr_idx, sig_idx);
-                    prices = BytesUtil_v0.concat(prices, BytesUtil_v0.toBytes(nums[nums_idx + 1]));
-                    currencies = BytesUtil_v0.concat(currencies, BytesUtil_v0.toBytes(addr[addr_idx]));
-
-                    nums_idx += 2;
-                    addr_idx += 1;
-                    sig_idx += 65;
-
-                } else {
-                    revert("T721AC::fixAttachments | unknown payment method");
-                }
+                nums_idx += 1;
+                addr_idx += 1;
             }
 
             if (attachment_authorization != address(0)) {

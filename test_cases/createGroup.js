@@ -1,5 +1,4 @@
 const { T721C_CONTRACT_NAME } = require('./constants');
-const hex = require('string-hex');
 
 module.exports = {
     createGroup: async function createGroup() {

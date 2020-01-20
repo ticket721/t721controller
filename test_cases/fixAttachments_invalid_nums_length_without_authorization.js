@@ -1,5 +1,5 @@
 const { T721C_CONTRACT_NAME, T721AC_CONTRACT_NAME, ZADDRESS } = require('./constants');
-const { catToArgs, strToB32, mintToArgs, MintingAuthorizer, attachmentToArgs, injectAttachmentSigs } = require('./utils');
+const { catToArgs, strToB32, mintToArgs, MintingAuthorizer, attachmentToArgs } = require('./utils');
 const {Wallet} = require('ethers');
 
 module.exports = {
@@ -8,15 +8,14 @@ module.exports = {
         const {accounts, expect} = this;
         const controllers = 'core@1.0.0:esport@1.0.0';
 
-        const {ERC721, ERC20, ERC2280} = this.contracts;
+        const {ERC721, ERC20, Dai} = this.contracts;
         const T721Controller = this.contracts[T721C_CONTRACT_NAME];
         const T721AttachmentsController = this.contracts[T721AC_CONTRACT_NAME];
         const authorizer = Wallet.createRandom();
-        const attachment = Wallet.createRandom();
 
-        await T721Controller.whitelistERC20(ERC20.address, 0, 0);
-        await T721Controller.whitelistERC20(ERC2280.address, 0, 0);
-        await T721Controller.whitelistERC2280(ERC2280.address, 0, 0);
+        await T721Controller.whitelistCurrency(ERC20.address, 0, 0);
+        await T721Controller.whitelistCurrency(Dai.address, 0, 0);
+        await T721Controller.whitelistCurrency(Dai.address, 0, 0);
 
         const res = await T721Controller.createGroup(controllers, {from: accounts[0]});
         const id = res.logs[0].args.id;
@@ -40,7 +39,7 @@ module.exports = {
             attachment: ZADDRESS,
             prices: {
                 [ERC20.address]: 100,
-                [ERC2280.address]: 200
+                [Dai.address]: 200
             }
         });
 
@@ -57,7 +56,7 @@ module.exports = {
             },
             {
                 type: 1,
-                address: ERC2280.address,
+                address: Dai.address,
                 amount: 1000
             }
         ];
@@ -126,9 +125,9 @@ module.exports = {
         const [mint_nums, mint_addr, mint_sig] = mintToArgs(currencies, owners);
 
         await ERC20.mint(accounts[0], 100 * 5);
-        await ERC2280.mint(accounts[0], 200 * 5);
+        await Dai.mint(accounts[0], 200 * 5);
         await ERC20.approve(T721Controller.address, 100 * 5, {from: accounts[0]});
-        await ERC2280.approve(T721Controller.address, 200 * 5, {from: accounts[0]});
+        await Dai.approve(T721Controller.address, 200 * 5, {from: accounts[0]});
         await T721Controller.verifyMint(id, 0, mint_nums, mint_addr, mint_sig, {from: accounts[0]});
         await T721Controller.mint(id, 0, mint_nums, mint_addr, mint_sig, {from: accounts[0]});
 
@@ -153,7 +152,6 @@ module.exports = {
                 prices: {
                     [ERC20.address]: {
                         price: 100,
-                        mode: 1
                     }
                 }
             },
@@ -164,7 +162,6 @@ module.exports = {
                 prices: {
                     [ERC20.address]: {
                         price: 200,
-                        mode: 1
                     }
                 }
             },
@@ -175,20 +172,19 @@ module.exports = {
                 prices: {
                     [ERC20.address]: {
                         price: 1000,
-                        mode: 1
                     }
                 }
             },
         ];
 
         const [att_names, att_nums, att_addr, att_sig, att_test_nums, att_test_addr] = attachmentToArgs(attachments, id, 0);
-        const test_err_nums = att_test_nums.slice(0, att_test_nums.length - 3); // When calling checker, additional end check exists to verify overall allowance
-        await expect(T721AttachmentsController.verifyFixAttachments(ticket_id, att_names, test_err_nums, att_test_addr, att_sig, {from: accounts[0]})).to.eventually.be.rejectedWith('T721AC::verifyAttachments | invalid test nums length');
-        const err_nums = att_nums.slice(0, 4);
+        const test_err_nums = att_test_nums.slice(0, att_test_nums.length - 2); // When calling checker, additional end check exists to verify overall allowance
+        await expect(T721AttachmentsController.verifyAttachments(ticket_id, att_names, test_err_nums, att_test_addr, att_sig, {from: accounts[0]})).to.eventually.be.rejectedWith('T721AC::verifyAttachments | invalid test nums length');
+        const err_nums = att_nums.slice(0, 3);
 
         await ERC20.mint(accounts[0], 1300);
         await ERC20.approve(T721AttachmentsController.address, 1300, {from: accounts[0]});
-        await expect(T721AttachmentsController.verifyFixAttachments(ticket_id, att_names, err_nums, att_test_addr, att_sig, {from: accounts[0]})).to.eventually.be.rejectedWith('T721AC::verifyAttachments | invalid nums length');
+        await expect(T721AttachmentsController.verifyAttachments(ticket_id, att_names, err_nums, att_test_addr, att_sig, {from: accounts[0]})).to.eventually.be.rejectedWith('T721AC::verifyAttachments | invalid nums length');
         return expect(T721AttachmentsController.fixAttachments(ticket_id, att_names, err_nums, att_addr, att_sig, {from: accounts[0]})).to.eventually.be.rejectedWith('T721AC::fixAttachments | invalid nums length');
     }
 };

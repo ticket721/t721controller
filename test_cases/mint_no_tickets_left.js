@@ -8,7 +8,7 @@ module.exports = {
         const {accounts, expect} = this;
         const controllers = 'core@1.0.0:esport@1.0.0';
 
-        const {ERC721, ERC20, ERC2280} = this.contracts;
+        const {ERC20, Dai} = this.contracts;
         const T721Controller = this.contracts[T721C_CONTRACT_NAME];
         const authorizer = Wallet.createRandom();
 
@@ -34,7 +34,7 @@ module.exports = {
             attachment: ZADDRESS,
             prices: {
                 [ERC20.address]: 100,
-                [ERC2280.address]: 200
+                [Dai.address]: 200
             }
         });
 
@@ -51,7 +51,7 @@ module.exports = {
             },
             {
                 type: 1,
-                address: ERC2280.address,
+                address: Dai.address,
                 amount: 1000
             }
         ];
@@ -120,9 +120,9 @@ module.exports = {
         const [mint_nums, mint_addr, mint_sig] = mintToArgs(currencies, owners);
 
         await ERC20.mint(accounts[0], 100 * 5);
-        await ERC2280.mint(accounts[0], 200 * 5);
+        await Dai.mint(accounts[0], 200 * 5);
         await ERC20.approve(T721Controller.address, 100 * 5, {from: accounts[0]});
-        await ERC2280.approve(T721Controller.address, 200 * 5, {from: accounts[0]});
+        await Dai.approve(T721Controller.address, 200 * 5, {from: accounts[0]});
         await expect(T721Controller.verifyMint(id, 0, mint_nums, mint_addr, mint_sig, {from: accounts[0]})).to.eventually.be.rejectedWith('T721C::verifyMint | no tickets left to sell for category');
         return expect(T721Controller.mint(id, 0, mint_nums, mint_addr, mint_sig, {from: accounts[0]})).to.eventually.be.rejectedWith('T721C::mint | no tickets left to sell for category');
 

@@ -1,6 +1,5 @@
 const { T721C_CONTRACT_NAME, ZADDRESS } = require('./constants');
-const { catToArgs, strToB32, mintToArgs, MintingAuthorizer } = require('./utils');
-const {Wallet} = require('ethers');
+const { catToArgs, strToB32, mintToArgs } = require('./utils');
 
 module.exports = {
     mint_10_owners_2_currencies_without_authorization: async function mint_10_owners_2_currencies_without_authorization() {
@@ -8,9 +7,8 @@ module.exports = {
         const {accounts, expect} = this;
         const controllers = 'core@1.0.0:esport@1.0.0';
 
-        const {ERC721, ERC20, ERC2280} = this.contracts;
+        const {ERC721, ERC20, Dai} = this.contracts;
         const T721Controller = this.contracts[T721C_CONTRACT_NAME];
-        const authorizer = Wallet.createRandom();
 
         const res = await T721Controller.createGroup(controllers, {from: accounts[0]});
         const id = res.logs[0].args.id;
@@ -34,7 +32,7 @@ module.exports = {
             attachment: ZADDRESS,
             prices: {
                 [ERC20.address]: 100,
-                [ERC2280.address]: 200
+                [Dai.address]: 200
             }
         });
 
@@ -51,7 +49,7 @@ module.exports = {
             },
             {
                 type: 1,
-                address: ERC2280.address,
+                address: Dai.address,
                 amount: 1000
             }
         ];
@@ -92,9 +90,9 @@ module.exports = {
         const [mint_nums, mint_addr, mint_sig] = mintToArgs(currencies, owners);
 
         await ERC20.mint(accounts[0], 100 * 5);
-        await ERC2280.mint(accounts[0], 200 * 5);
+        await Dai.mint(accounts[0], 200 * 5);
         await ERC20.approve(T721Controller.address, 100 * 5, {from: accounts[0]});
-        await ERC2280.approve(T721Controller.address, 200 * 5, {from: accounts[0]});
+        await Dai.approve(T721Controller.address, 200 * 5, {from: accounts[0]});
         await T721Controller.verifyMint(id, 0, mint_nums, mint_addr, mint_sig, {from: accounts[0]});
         const rec = await T721Controller.mint(id, 0, mint_nums, mint_addr, mint_sig, {from: accounts[0]});
 
@@ -110,15 +108,15 @@ module.exports = {
         expect((await ERC721.balanceOf(accounts[9])).toNumber()).to.equal(1);
 
         expect((await ERC20.balanceOf(accounts[0])).toNumber()).to.equal(0);
-        expect((await ERC2280.balanceOf(accounts[0])).toNumber()).to.equal(0);
+        expect((await Dai.balanceOf(accounts[0])).toNumber()).to.equal(0);
 
-        const payment_1_fee = (await T721Controller.getERC20Fee(ERC20.address, 500)).toNumber();
-        const payment_2_fee = (await T721Controller.getERC20Fee(ERC2280.address, 1000)).toNumber();
+        const payment_1_fee = (await T721Controller.getFee(ERC20.address, 500)).toNumber();
+        const payment_2_fee = (await T721Controller.getFee(Dai.address, 1000)).toNumber();
 
         expect((await T721Controller.balanceOf(id, ERC20.address)).toNumber()).to.equal(500 - payment_1_fee);
-        expect((await T721Controller.balanceOf(id, ERC2280.address)).toNumber()).to.equal(1000 - payment_2_fee);
+        expect((await T721Controller.balanceOf(id, Dai.address)).toNumber()).to.equal(1000 - payment_2_fee);
         expect((await ERC20.balanceOf(accounts[9])).toNumber()).to.equal(payment_1_fee);
-        expect((await ERC2280.balanceOf(accounts[9])).toNumber()).to.equal(payment_2_fee);
+        expect((await Dai.balanceOf(accounts[9])).toNumber()).to.equal(payment_2_fee);
 
         let idx = 0;
         for (const log of rec.logs) {

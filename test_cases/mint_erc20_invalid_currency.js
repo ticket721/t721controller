@@ -1,5 +1,5 @@
 const { T721C_CONTRACT_NAME, ZADDRESS } = require('./constants');
-const { catToArgs, strToB32, mintToArgs, MintingAuthorizer } = require('./utils');
+const { catToArgs, mintToArgs } = require('./utils');
 const {Wallet} = require('ethers');
 
 module.exports = {
@@ -8,9 +8,8 @@ module.exports = {
         const {accounts, expect} = this;
         const controllers = 'core@1.0.0:esport@1.0.0';
 
-        const {ERC721, ERC20, ERC2280} = this.contracts;
+        const {ERC20, Dai} = this.contracts;
         const T721Controller = this.contracts[T721C_CONTRACT_NAME];
-        const authorizer = Wallet.createRandom();
 
         const res = await T721Controller.createGroup(controllers, {from: accounts[0]});
         const id = res.logs[0].args.id;
@@ -44,7 +43,6 @@ module.exports = {
 
         const currencies = [
             {
-                type: 1,
                 address: ERC20.address,
                 amount: 1000
             }
@@ -84,11 +82,11 @@ module.exports = {
         ];
 
         const [mint_nums, mint_addr, mint_sig] = mintToArgs(currencies, owners);
-        mint_addr[0] = ERC2280.address;
+        mint_addr[0] = Dai.address;
 
         await ERC20.mint(accounts[0], 100 * 10);
         await ERC20.approve(T721Controller.address, 100 * 10, {from: accounts[0]});
-        await expect(T721Controller.verifyMint(id, 0, mint_nums, mint_addr, mint_sig, {from: accounts[0]})).to.eventually.be.rejectedWith('T721C::verifyERC20MintPayment | invalid currency');
-        return expect(T721Controller.mint(id, 0, mint_nums, mint_addr, mint_sig, {from: accounts[0]})).to.eventually.be.rejectedWith('T721C::processERC20MintPayment | invalid currency');
+        await expect(T721Controller.verifyMint(id, 0, mint_nums, mint_addr, mint_sig, {from: accounts[0]})).to.eventually.be.rejectedWith('T721C::verifyMintPayment | invalid currency');
+        return expect(T721Controller.mint(id, 0, mint_nums, mint_addr, mint_sig, {from: accounts[0]})).to.eventually.be.rejectedWith('T721C::processMintPayment | invalid currency');
     }
 };

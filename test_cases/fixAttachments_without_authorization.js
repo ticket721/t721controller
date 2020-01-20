@@ -8,14 +8,14 @@ module.exports = {
         const {accounts, expect} = this;
         const controllers = 'core@1.0.0:esport@1.0.0';
 
-        const {ERC721, ERC20, ERC2280} = this.contracts;
+        const {ERC721, ERC20, Dai} = this.contracts;
         const T721Controller = this.contracts[T721C_CONTRACT_NAME];
         const T721AttachmentsController = this.contracts[T721AC_CONTRACT_NAME];
         const authorizer = Wallet.createRandom();
 
-        await T721Controller.whitelistERC20(ERC20.address, 0, 0);
-        await T721Controller.whitelistERC20(ERC2280.address, 0, 0);
-        await T721Controller.whitelistERC2280(ERC2280.address, 0, 0);
+        await T721Controller.whitelistCurrency(ERC20.address, 0, 0);
+        await T721Controller.whitelistCurrency(Dai.address, 0, 0);
+        await T721Controller.whitelistCurrency(Dai.address, 0, 0);
 
         const res = await T721Controller.createGroup(controllers, {from: accounts[0]});
         const id = res.logs[0].args.id;
@@ -39,7 +39,7 @@ module.exports = {
             attachment: ZADDRESS,
             prices: {
                 [ERC20.address]: 100,
-                [ERC2280.address]: 200
+                [Dai.address]: 200
             }
         });
 
@@ -56,7 +56,7 @@ module.exports = {
             },
             {
                 type: 1,
-                address: ERC2280.address,
+                address: Dai.address,
                 amount: 1000
             }
         ];
@@ -125,9 +125,9 @@ module.exports = {
         const [mint_nums, mint_addr, mint_sig] = mintToArgs(currencies, owners);
 
         await ERC20.mint(accounts[0], 100 * 5);
-        await ERC2280.mint(accounts[0], 200 * 5);
+        await Dai.mint(accounts[0], 200 * 5);
         await ERC20.approve(T721Controller.address, 100 * 5, {from: accounts[0]});
-        await ERC2280.approve(T721Controller.address, 200 * 5, {from: accounts[0]});
+        await Dai.approve(T721Controller.address, 200 * 5, {from: accounts[0]});
         await T721Controller.verifyMint(id, 0, mint_nums, mint_addr, mint_sig, {from: accounts[0]});
         await T721Controller.mint(id, 0, mint_nums, mint_addr, mint_sig, {from: accounts[0]});
 
@@ -152,11 +152,9 @@ module.exports = {
                 prices: {
                     [ERC20.address]: {
                         price: 100,
-                        mode: 1
                     },
-                    [ERC2280.address]: {
+                    [Dai.address]: {
                         price: 100,
-                        mode: 1
                     }
                 }
             }
@@ -166,9 +164,9 @@ module.exports = {
 
         await ERC20.mint(accounts[0], 300);
         await ERC20.approve(T721AttachmentsController.address, 100, {from: accounts[0]});
-        await ERC2280.mint(accounts[0], 300);
-        await ERC2280.approve(T721AttachmentsController.address, 100, {from: accounts[0]});
-        await T721AttachmentsController.verifyFixAttachments(ticket_id, att_names, att_test_nums, att_test_addr, att_sig, {from: accounts[0]});
+        await Dai.mint(accounts[0], 300);
+        await Dai.approve(T721AttachmentsController.address, 100, {from: accounts[0]});
+        await T721AttachmentsController.verifyAttachments(ticket_id, att_names, att_test_nums, att_test_addr, att_sig, {from: accounts[0]});
         const rec = await T721AttachmentsController.fixAttachments(ticket_id, att_names, att_nums, att_addr, att_sig, {from: accounts[0]});
 
         let idx = 0;
@@ -178,7 +176,7 @@ module.exports = {
             expect(log.args.attachment.toLowerCase()).to.equal(strToB32(attachments[idx].name));
             expect(log.args.amount.toNumber()).to.equal(attachments[idx].amount);
 
-            const fee = (await T721AttachmentsController.getERC20Fee(ERC20.address, attachments[idx].prices[ERC20.address].price)).toNumber();
+            const fee = (await T721AttachmentsController.getFee(ERC20.address, attachments[idx].prices[ERC20.address].price)).toNumber();
 
             fee_sum += fee;
             received_sum += (attachments[idx].prices[ERC20.address].price - fee);
@@ -189,9 +187,9 @@ module.exports = {
         expect((await ERC20.balanceOf(accounts[9])).toNumber()).to.equal(fee_sum);
         expect((await ERC20.balanceOf(T721AttachmentsController.address)).toNumber()).to.equal(received_sum);
         expect((await ERC20.balanceOf(accounts[0])).toNumber()).to.equal(200);
-        expect((await ERC2280.balanceOf(accounts[9])).toNumber()).to.equal(fee_sum);
-        expect((await ERC2280.balanceOf(T721AttachmentsController.address)).toNumber()).to.equal(received_sum);
-        expect((await ERC2280.balanceOf(accounts[0])).toNumber()).to.equal(200);
+        expect((await Dai.balanceOf(accounts[9])).toNumber()).to.equal(fee_sum);
+        expect((await Dai.balanceOf(T721AttachmentsController.address)).toNumber()).to.equal(received_sum);
+        expect((await Dai.balanceOf(accounts[0])).toNumber()).to.equal(200);
         expect((await T721AttachmentsController.balanceOf(id, ERC20.address)).toNumber()).to.equal(received_sum);
 
     }

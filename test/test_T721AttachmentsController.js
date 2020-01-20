@@ -16,7 +16,6 @@ const {fixAttachments_invalid_group_id} = require('../test_cases/fixAttachments_
 const {fixAttachments_invalid_category_idx} = require('../test_cases/fixAttachments_invalid_category_idx');
 const {fixAttachments_invalid_b32_length} = require('../test_cases/fixAttachments_invalid_b32_length');
 const {fixAttachments_invalid_caller} = require('../test_cases/fixAttachments_invalid_caller');
-const {fixAttachments_invalid_payment_method} = require('../test_cases/fixAttachments_invalid_payment_method');
 const {fixAttachments_invalid_nums_length} = require('../test_cases/fixAttachments_invalid_nums_length');
 const {fixAttachments_invalid_nums_length_without_authorization} = require('../test_cases/fixAttachments_invalid_nums_length_without_authorization');
 const {fixAttachments_invalid_auth_sig_length} = require('../test_cases/fixAttachments_invalid_auth_sig_length');
@@ -26,10 +25,6 @@ const {fixAttachments_duplicate_code} = require('../test_cases/fixAttachments_du
 const {fixAttachments_erc20_invalid_nums_length} = require('../test_cases/fixAttachments_erc20_invalid_nums_length');
 const {fixAttachments_erc20_invalid_addr_length} = require('../test_cases/fixAttachments_erc20_invalid_addr_length');
 const {fixAttachments_erc20_allowance_too_low} = require('../test_cases/fixAttachments_erc20_allowance_too_low');
-const {fixAttachments_erc2280_with_authorization} = require('../test_cases/fixAttachments_erc2280_with_authorization');
-const {fixAttachments_erc2280_invalid_nums_length} = require('../test_cases/fixAttachments_erc2280_invalid_nums_length');
-const {fixAttachments_erc2280_invalid_addr_length} = require('../test_cases/fixAttachments_erc2280_invalid_addr_length');
-const {fixAttachments_erc2280_invalid_sig_length} = require('../test_cases/fixAttachments_erc2280_invalid_sig_length');
 
 contract('T721AttachmentsController_v0', (accounts) => {
 
@@ -41,11 +36,11 @@ contract('T721AttachmentsController_v0', (accounts) => {
         const T721AttachmentsControllerInstance = await T721AttachmentsControllerArtifact.deployed();
 
         const ERC20MockArtifact = artifacts.require('ERC20Mock_v0');
-        const ERC2280MockArtifact = artifacts.require('ERC2280Mock_v0');
+        const DaiMockArtifact = artifacts.require('DaiMock_v0');
         const ERC721MockArtifact = artifacts.require('ERC721Mock_v0');
 
         const ERC20Instance = await ERC20MockArtifact.deployed();
-        const ERC2280Instance = await ERC2280MockArtifact.deployed();
+        const DaiInstance = await DaiMockArtifact.deployed();
         const ERC721Instance = await ERC721MockArtifact.deployed();
 
         //await ERC721Instance.createScope(SCOPE_NAME, '0x0000000000000000000000000000000000000000', [MetaMarketplaceInstance.address], []);
@@ -57,7 +52,7 @@ contract('T721AttachmentsController_v0', (accounts) => {
             [T721AC_CONTRACT_NAME]: T721AttachmentsControllerInstance,
             ERC721: ERC721Instance,
             ERC20: ERC20Instance,
-            ERC2280: ERC2280Instance
+            Dai: DaiInstance
         };
 
         this.snap_id = await snapshot();
@@ -80,7 +75,6 @@ contract('T721AttachmentsController_v0', (accounts) => {
         it('fixAttachments invalid category idx', fixAttachments_invalid_category_idx);
         it('fixAttachments invalid b32 length', fixAttachments_invalid_b32_length);
         it('fixAttachments invalid caller', fixAttachments_invalid_caller);
-        it('fixAttachments invalid payment method', fixAttachments_invalid_payment_method);
         it('fixAttachments invalid nums length', fixAttachments_invalid_nums_length);
         it('fixAttachments invalid nums length without authorization', fixAttachments_invalid_nums_length_without_authorization);
         it('fixAttachments invalid auth sig length', fixAttachments_invalid_auth_sig_length);
@@ -90,10 +84,6 @@ contract('T721AttachmentsController_v0', (accounts) => {
         it('fixAttachments erc20 invalid nums length', fixAttachments_erc20_invalid_nums_length);
         it('fixAttachments erc20 invalid addr length', fixAttachments_erc20_invalid_addr_length);
         it('fixAttachments erc20 allowance too low', fixAttachments_erc20_allowance_too_low);
-        it('fixAttachments erc2280 with authorization', fixAttachments_erc2280_with_authorization);
-        it('fixAttachments erc2280 invalid nums length', fixAttachments_erc2280_invalid_nums_length);
-        it('fixAttachments erc2280 invalid addr length', fixAttachments_erc2280_invalid_addr_length);
-        it('fixAttachments erc2280 invalid sig length', fixAttachments_erc2280_invalid_sig_length);
 
     });
 

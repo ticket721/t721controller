@@ -7,7 +7,7 @@ module.exports = {
         const {accounts, expect} = this;
         const controllers = 'core@1.0.0:esport@1.0.0';
 
-        const {ERC20, ERC2280} = this.contracts;
+        const {ERC20} = this.contracts;
         const T721Controller = this.contracts[T721C_CONTRACT_NAME];
 
         const res = await T721Controller.createGroup(controllers, {from: accounts[0]});
@@ -36,7 +36,6 @@ module.exports = {
                 attachment: ZADDRESS,
                 prices: {
                     [ERC20.address]: 100,
-                    [ERC2280.address]: 200
                 }
             })
         }
@@ -64,12 +63,10 @@ module.exports = {
             expect(recovered.hierarchy).to.equal(strToB32('root'));
             expect(recovered.sold.toNumber()).to.equal(0);
 
-            expect(recovered.currencies.length).to.equal(2);
+            expect(recovered.currencies.length).to.equal(1);
             expect(recovered.currencies.indexOf(ERC20.address)).to.not.equal(-1);
-            expect(recovered.currencies.indexOf(ERC2280.address)).to.not.equal(-1);
 
             expect((await T721Controller.getCategoryPrice(id, idx, ERC20.address)).toNumber()).to.equal(100);
-            expect((await T721Controller.getCategoryPrice(id, idx, ERC2280.address)).toNumber()).to.equal(200);
 
         }
 
