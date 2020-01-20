@@ -2,7 +2,6 @@ pragma solidity 0.5.15;
 
 import "./ITicketForge_v0.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "erc2280/contracts/IERC2280.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "./T721ControllerDomain_v0.sol";
 import "./BytesUtil_v0.sol";
