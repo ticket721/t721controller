@@ -7,7 +7,7 @@ module.exports = {
         const {accounts, expect} = this;
         const controllers = 'core@1.0.0:esport@1.0.0';
 
-        const {ERC20, ERC2280} = this.contracts;
+        const {ERC20} = this.contracts;
         const T721Controller = this.contracts[T721C_CONTRACT_NAME];
 
         const res = await T721Controller.createGroup(controllers, {from: accounts[0]});
@@ -32,7 +32,6 @@ module.exports = {
             attachment: ZADDRESS,
             prices: {
                 [ERC20.address]: 100,
-                [ERC2280.address]: 200
             }
         });
 

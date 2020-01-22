@@ -4,7 +4,6 @@ module.exports = {
     setFeeCollector_from_non_owner: async function setFeeCollector_from_non_owner() {
 
         const {accounts, expect} = this;
-        const controllers = 'core@1.0.0:esport@1.0.0';
 
         const T721Controller = this.contracts[T721C_CONTRACT_NAME];
         const T721AttachmentsController = this.contracts[T721AC_CONTRACT_NAME];

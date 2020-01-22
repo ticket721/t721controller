@@ -134,22 +134,16 @@ const attachmentToArgs = (attachments, group_id, category_idx) => {
         nums.push(Object.keys(attachment.prices).length);
 
         for (const curr of Object.keys(attachment.prices)) {
-            nums.push(attachment.prices[curr].mode);
             nums.push(attachment.prices[curr].price);
             addr.push(curr);
 
             if (prices[curr] === undefined) {
                 prices[curr] = {
-                    mode: attachment.prices[curr].mode,
                     total: 0
                 }
             }
 
             prices[curr].total += attachment.prices[curr].price;
-
-            if (attachment.prices[curr].mode === 2) {
-                sig = `${sig}${attachment.prices[curr].sig.slice(2)}`;
-            }
 
         }
 
@@ -166,7 +160,6 @@ const attachmentToArgs = (attachments, group_id, category_idx) => {
     const currencies = [];
 
     for (const curr of Object.keys(prices)) {
-        totals.push(prices[curr].mode);
         totals.push(prices[curr].total);
         currencies.push(curr);
     }
@@ -183,17 +176,10 @@ const mintToArgs = (currencies, owners) => {
     nums.push(owners.length);
 
     for (const currency of currencies) {
-        nums.push(currency.type);
 
-        if (currency.type === 1) {
-            nums.push(currency.amount);
-        } else if (currency.type === 2) {
-            nums.push(currency.amount);
-
-            sig = `${sig}${currency.sig.slice(2)}`;
-        }
-
+        nums.push(currency.amount);
         addr.push(currency.address);
+
     }
 
     for (const owner of owners) {

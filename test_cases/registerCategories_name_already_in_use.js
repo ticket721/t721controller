@@ -1,5 +1,5 @@
 const { T721C_CONTRACT_NAME, ZADDRESS } = require('./constants');
-const { catToArgs, strToB32 } = require('./utils');
+const { catToArgs } = require('./utils');
 
 module.exports = {
     registerCategories_name_already_in_use: async function registerCategories_name_already_in_use() {
@@ -7,7 +7,7 @@ module.exports = {
         const {accounts, expect} = this;
         const controllers = 'core@1.0.0:esport@1.0.0';
 
-        const {ERC20, ERC2280} = this.contracts;
+        const {ERC20} = this.contracts;
         const T721Controller = this.contracts[T721C_CONTRACT_NAME];
 
         const res = await T721Controller.createGroup(controllers, {from: accounts[0]});
@@ -35,7 +35,6 @@ module.exports = {
                 attachment: ZADDRESS,
                 prices: {
                     [ERC20.address]: 100,
-                    [ERC2280.address]: 200
                 }
             })
         }

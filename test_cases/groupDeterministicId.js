@@ -1,5 +1,4 @@
-const { T721C_CONTRACT_NAME, ZADDRESS } = require('./constants');
-const { catToArgs, strToB32 } = require('./utils');
+const { T721C_CONTRACT_NAME } = require('./constants');
 
 module.exports = {
     groupDeterministicId: async function groupDeterministicId() {
@@ -7,7 +6,6 @@ module.exports = {
         const {accounts, expect} = this;
         const controllers = 'core@1.0.0:esport@1.0.0';
 
-        const {ERC20, ERC2280} = this.contracts;
         const T721Controller = this.contracts[T721C_CONTRACT_NAME];
 
         const first_expected_id = await T721Controller.getNextGroupId();

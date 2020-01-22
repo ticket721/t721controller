@@ -40,26 +40,18 @@ const {editCategory_sale_start} = require('../test_cases/editCategory_sale_start
 const {editCategory_all_but_sale_start} = require('../test_cases/editCategory_all_but_sale_start');
 const {editCategory_amount_too_low} = require('../test_cases/editCategory_amount_too_low');
 const {editCategory_invalid_lengths} = require('../test_cases/editCategory_invalid_lengths');
-const {editCategory_add_erc2280} = require('../test_cases/editCategory_add_erc2280');
 const {editCategory_invalid_currency} = require('../test_cases/editCategory_invalid_currency');
 
 const {mint_10_owners_2_currencies_with_authorization} = require('../test_cases/mint_10_owners_2_currencies_with_authorization');
 const {mint_10_owners_2_currencies_without_authorization} = require('../test_cases/mint_10_owners_2_currencies_without_authorization');
-const {mint_10_owners_erc2280_with_authorization} = require('../test_cases/mint_10_owners_erc2280_with_authorization');
 const {mint_erc20_invalid_nums} = require('../test_cases/mint_erc20_invalid_nums');
-const {mint_erc2280_invalid_nums} = require('../test_cases/mint_erc2280_invalid_nums');
 const {mint_erc20_invalid_addr} = require('../test_cases/mint_erc20_invalid_addr');
-const {mint_erc2280_invalid_addr} = require('../test_cases/mint_erc2280_invalid_addr');
 const {mint_erc20_unauthorized_currency} = require('../test_cases/mint_erc20_unauthorized_currency');
-const {mint_erc2280_unauthorized_currency} = require('../test_cases/mint_erc2280_unauthorized_currency');
-const {mint_erc2280_invalid_sig_size} = require('../test_cases/mint_erc2280_invalid_sig_size');
 const {mint_erc20_invalid_currency} = require('../test_cases/mint_erc20_invalid_currency');
-const {mint_erc2280_invalid_currency} = require('../test_cases/mint_erc2280_invalid_currency');
 const {mint_erc20_allowance_too_low} = require('../test_cases/mint_erc20_allowance_too_low');
 const {mint_invalid_nums} = require('../test_cases/mint_invalid_nums');
 const {mint_0_owners} = require('../test_cases/mint_0_owners');
 const {mint_no_tickets_left} = require('../test_cases/mint_no_tickets_left');
-const {mint_invalid_payment_method} = require('../test_cases/mint_invalid_payment_method');
 const {mint_payment_score_too_low} = require('../test_cases/mint_payment_score_too_low');
 const {mint_invalid_authorization_signature_count} = require('../test_cases/mint_invalid_authorization_signature_count');
 const {mint_invalid_authorization_code_count} = require('../test_cases/mint_invalid_authorization_code_count');
@@ -84,11 +76,11 @@ contract('T721Controller_v0', (accounts) => {
         const T721AttachmentsControllerInstance = await T721AttachmentsControllerArtifact.deployed();
 
         const ERC20MockArtifact = artifacts.require('ERC20Mock_v0');
-        const ERC2280MockArtifact = artifacts.require('ERC2280Mock_v0');
+        const DaiMockArtifact = artifacts.require('DaiMock_v0');
         const ERC721MockArtifact = artifacts.require('ERC721Mock_v0');
 
         const ERC20Instance = await ERC20MockArtifact.deployed();
-        const ERC2280Instance = await ERC2280MockArtifact.deployed();
+        const DaiInstance = await DaiMockArtifact.deployed();
         const ERC721Instance = await ERC721MockArtifact.deployed();
 
         //await ERC721Instance.createScope(SCOPE_NAME, '0x0000000000000000000000000000000000000000', [MetaMarketplaceInstance.address], []);
@@ -98,9 +90,9 @@ contract('T721Controller_v0', (accounts) => {
         this.contracts = {
             [T721C_CONTRACT_NAME]: T721ControllerInstance,
             [T721AC_CONTRACT_NAME]: T721AttachmentsControllerInstance,
+            Dai: DaiInstance,
             ERC721: ERC721Instance,
             ERC20: ERC20Instance,
-            ERC2280: ERC2280Instance
         };
 
         this.snap_id = await snapshot();
@@ -143,7 +135,6 @@ contract('T721Controller_v0', (accounts) => {
         it('editCategory all but sale start', editCategory_all_but_sale_start);
         it('editCategory amount too low', editCategory_amount_too_low);
         it('editCategory invalid lengths', editCategory_invalid_lengths);
-        it('editCategory add erc2280', editCategory_add_erc2280);
         it('editCategory invalid currency', editCategory_invalid_currency);
 
     });
@@ -152,21 +143,14 @@ contract('T721Controller_v0', (accounts) => {
 
         it('mint 10 owners 2 currencies with authorization', mint_10_owners_2_currencies_with_authorization);
         it('mint 10 owners 2 currencies without authorization', mint_10_owners_2_currencies_without_authorization);
-        it('mint 10 owners erc2280 with authorization', mint_10_owners_erc2280_with_authorization);
         it('mint erc20 invalid nums', mint_erc20_invalid_nums);
-        it('mint erc2280 invalid nums', mint_erc2280_invalid_nums);
         it('mint erc20 invalid addr', mint_erc20_invalid_addr);
-        it('mint erc2280 invalid addr', mint_erc2280_invalid_addr);
         it('mint erc20 unauthorized currency', mint_erc20_unauthorized_currency);
-        it('mint erc2280 unauthorized currency', mint_erc2280_unauthorized_currency);
-        it('mint erc2280 invalid sig size', mint_erc2280_invalid_sig_size);
         it('mint erc20 invalid currency', mint_erc20_invalid_currency);
-        it('mint erc2280 invalid currency', mint_erc2280_invalid_currency);
         it('mint erc20 allowance too low', mint_erc20_allowance_too_low);
         it('mint invalid nums', mint_invalid_nums);
         it('mint 0 owners', mint_0_owners);
         it('mint no tickets left', mint_no_tickets_left);
-        it('mint invalid payment method', mint_invalid_payment_method);
         it('mint payment score too low', mint_payment_score_too_low);
         it('mint invalid authorization signature count', mint_invalid_authorization_signature_count);
         it('mint invalid authorization code count', mint_invalid_authorization_code_count);

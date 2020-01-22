@@ -1,8 +1,8 @@
 const T721Controller_v0 = artifacts.require('T721Controller_v0');
 const T721AttachmentsController_v0 = artifacts.require('T721AttachmentsController_v0');
+const DaiMock_v0 = artifacts.require("DaiMock_v0");
 const ERC20Mock_v0 = artifacts.require("ERC20Mock_v0");
 const ERC721Mock_v0 = artifacts.require("ERC721Mock_v0");
-const ERC2280Mock_v0 = artifacts.require("ERC2280Mock_v0");
 const config = require('../truffle-config');
 
 const ZADDRESS = '0x0000000000000000000000000000000000000000';
@@ -25,6 +25,8 @@ module.exports = async function(deployer, networkName, accounts) {
             const TicketForge = getArtifact('ticketforge').TicketForge;
 
             await deployer.deploy(T721Controller_v0, TicketForge.networks[network_id].address, network_id);
+            const T721Controller_v0Instance = await T721Controller_v0.deployed();
+            await deployer.deploy(T721AttachmentsController_v0, T721Controller_v0Instance.address, TicketForge.networks[network_id].address, network_id);
 
         } else {
             throw new Error('Deployment requires Ticket721 repo setup to inject daiplus & ticketforge configuration');
@@ -40,8 +42,8 @@ module.exports = async function(deployer, networkName, accounts) {
         await deployer.deploy(ERC20Mock_v0);
         const ERC20Instance = await ERC20Mock_v0.deployed();
 
-        await deployer.deploy(ERC2280Mock_v0, ERC20Instance.address);
-        const ERC2280Instance = await ERC2280Mock_v0.deployed();
+        await deployer.deploy(DaiMock_v0);
+        const DaiInstance = await DaiMock_v0.deployed();
 
         await deployer.deploy(T721Controller_v0, ERC721Instance.address, network_id);
 
@@ -58,19 +60,12 @@ module.exports = async function(deployer, networkName, accounts) {
         await T721Controller_v0Instance.setScopeIndex(scope_index);
         await T721Controller_v0Instance.setFeeCollector(accounts[9]);
         console.log(`T721C: whitelisting erc20 ${ERC20Instance.address}`);
-        await T721Controller_v0Instance.whitelistERC20(ERC20Instance.address, 10, 10);
-        console.log(`T721C: whitelisting erc20 ${ERC2280Instance.address}`);
-        await T721Controller_v0Instance.whitelistERC20(ERC2280Instance.address, 10, 10);
-        console.log(`T721C: whitelisting erc2280 ${ERC2280Instance.address}`);
-        await T721Controller_v0Instance.whitelistERC2280(ERC2280Instance.address, 10, 10);
+        await T721Controller_v0Instance.whitelistCurrency(ERC20Instance.address, 10, 10);
+        await T721Controller_v0Instance.whitelistCurrency(DaiInstance.address, 10, 10);
 
         await T721AttachmentsController_v0Instance.setFeeCollector(accounts[9]);
         console.log(`T721AC: whitelisting erc20 ${ERC20Instance.address}`);
-        await T721AttachmentsController_v0Instance.whitelistERC20(ERC20Instance.address, 0, 3);
-        console.log(`T721AC: whitelisting erc20 ${ERC2280Instance.address}`);
-        await T721AttachmentsController_v0Instance.whitelistERC20(ERC2280Instance.address, 0, 3);
-        console.log(`T721AC: whitelisting erc2280 ${ERC2280Instance.address}`);
-        await T721AttachmentsController_v0Instance.whitelistERC2280(ERC2280Instance.address, 0, 3);
+        await T721AttachmentsController_v0Instance.whitelistCurrency(ERC20Instance.address, 0, 3);
 
     }
 };

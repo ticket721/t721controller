@@ -9,7 +9,6 @@ module.exports = {
         const T721Controller = this.contracts[T721C_CONTRACT_NAME];
 
         const res = await T721Controller.createGroup(controllers, {from: accounts[0]});
-        const id = res.logs[0].args.id;
 
         expect(T721Controller.setScopeIndex(0, {from: accounts[1]})).to.eventually.be.rejectedWith('T721C::ownerOnly | unauthorized account');
 
