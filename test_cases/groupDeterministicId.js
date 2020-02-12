@@ -8,13 +8,13 @@ module.exports = {
 
         const T721Controller = this.contracts[T721C_CONTRACT_NAME];
 
-        const first_expected_id = await T721Controller.getNextGroupId();
+        const first_expected_id = await T721Controller.getNextGroupId(accounts[0]);
         const first_res = await T721Controller.createGroup(controllers, {from: accounts[0]});
         const first_id = first_res.logs[0].args.id;
 
         expect(first_expected_id).to.equal(first_id);
 
-        const second_expected_id = await T721Controller.getNextGroupId();
+        const second_expected_id = await T721Controller.getNextGroupId(accounts[0]);
         const second_res = await T721Controller.createGroup(controllers, {from: accounts[0]});
         const second_id = second_res.logs[0].args.id;
 

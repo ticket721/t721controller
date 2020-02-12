@@ -212,13 +212,14 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
     //
     // @notice Utility to get next group ID
     //
-    function getNextGroupId() external view returns (bytes32) {
+    function getNextGroupId(address owner) public view returns (bytes32) {
 
         return keccak256(abi.encode(
                 current_id,
-                msg.sender,
-                group_nonce[msg.sender]
+                owner,
+                group_nonce[owner]
             ));
+
     }
 
     //
@@ -227,11 +228,7 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
     // @param controllers string containing all used controllers
     //
     function createGroup(string calldata controllers) external {
-        bytes32 selected_id = keccak256(abi.encode(
-                current_id,
-                msg.sender,
-                group_nonce[msg.sender]
-            ));
+        bytes32 selected_id = getNextGroupId(msg.sender);
 
         Group storage grp = groups[selected_id];
         grp.controllers = controllers;
