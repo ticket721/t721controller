@@ -66,6 +66,8 @@ const {setFeeCollector_from_non_owner} = require('../test_cases/setFeeCollector_
 
 const {fixAttachments_with_authorization} = require('../test_cases/fixAttachments_with_authorization');
 
+const {getGroupID} = require('../test_cases/getGroupID');
+
 contract('T721Controller_v0', (accounts) => {
 
     before(async function () {
@@ -106,91 +108,92 @@ contract('T721Controller_v0', (accounts) => {
         this.snap_id = await snapshot();
     });
 
-    describe('Attachments', function () {
+    // describe('Attachments', function () {
 
-        it('fixAttachments with authorization', fixAttachments_with_authorization);
+    //     it('fixAttachments with authorization', fixAttachments_with_authorization);
 
-    });
+    // });
 
-    describe('Categories', function () {
+    // describe('Categories', function () {
 
-        it('groupDeterministicId', groupDeterministicId);
-        it('registerCategories', registerCategories);
-        it('registerCategories disable resale', registerCategories_disable_resale);
-        it('registerCategories invalid nums', registerCategories_invalid_nums);
-        it('registerCategories invalid addr', registerCategories_invalid_addr);
-        it('registerCategories invalid byte data', registerCategories_invalid_byte_data);
-        it('registerCategories invalid sale start', registerCategories_invalid_sale_start);
-        it('registerCategories invalid sale end', registerCategories_invalid_sale_end);
-        it('registerCategories invalid resale start', registerCategories_invalid_resale_start);
-        it('registerCategories invalid resale end', registerCategories_invalid_resale_end);
-        it('registerCategories from admin', registerCategories_from_admin);
-        it('registerCategories from unauthorized', registerCategories_from_unauthorized);
-        it('registerCategories name already in use', registerCategories_name_already_in_use);
-        it('registerCategories invalid currency', registerCategories_invalid_currency);
-        it('registerCategories invalid price', registerCategories_invalid_price);
-        it('registerCategories duplicate currency', registerCategories_duplicate_currency);
-        it('getCategory out of range', getCategory_out_of_range);
-        it('editCategory sale start', editCategory_sale_start);
-        it('editCategory all but sale start', editCategory_all_but_sale_start);
-        it('editCategory amount too low', editCategory_amount_too_low);
-        it('editCategory invalid lengths', editCategory_invalid_lengths);
-        it('editCategory invalid currency', editCategory_invalid_currency);
+    //     it('groupDeterministicId', groupDeterministicId);
+    //     it('registerCategories', registerCategories);
+    //     it('registerCategories disable resale', registerCategories_disable_resale);
+    //     it('registerCategories invalid nums', registerCategories_invalid_nums);
+    //     it('registerCategories invalid addr', registerCategories_invalid_addr);
+    //     it('registerCategories invalid byte data', registerCategories_invalid_byte_data);
+    //     it('registerCategories invalid sale start', registerCategories_invalid_sale_start);
+    //     it('registerCategories invalid sale end', registerCategories_invalid_sale_end);
+    //     it('registerCategories invalid resale start', registerCategories_invalid_resale_start);
+    //     it('registerCategories invalid resale end', registerCategories_invalid_resale_end);
+    //     it('registerCategories from admin', registerCategories_from_admin);
+    //     it('registerCategories from unauthorized', registerCategories_from_unauthorized);
+    //     it('registerCategories name already in use', registerCategories_name_already_in_use);
+    //     it('registerCategories invalid currency', registerCategories_invalid_currency);
+    //     it('registerCategories invalid price', registerCategories_invalid_price);
+    //     it('registerCategories duplicate currency', registerCategories_duplicate_currency);
+    //     it('getCategory out of range', getCategory_out_of_range);
+    //     it('editCategory sale start', editCategory_sale_start);
+    //     it('editCategory all but sale start', editCategory_all_but_sale_start);
+    //     it('editCategory amount too low', editCategory_amount_too_low);
+    //     it('editCategory invalid lengths', editCategory_invalid_lengths);
+    //     it('editCategory invalid currency', editCategory_invalid_currency);
 
-    });
+    // });
 
-    describe('Mint', function () {
+    // describe('Mint', function () {
 
-        it('mint 10 owners 2 currencies with authorization', mint_10_owners_2_currencies_with_authorization);
-        it('mint 10 owners 2 currencies without authorization', mint_10_owners_2_currencies_without_authorization);
-        it('mint erc20 invalid nums', mint_erc20_invalid_nums);
-        it('mint erc20 invalid addr', mint_erc20_invalid_addr);
-        it('mint erc20 unauthorized currency', mint_erc20_unauthorized_currency);
-        it('mint erc20 invalid currency', mint_erc20_invalid_currency);
-        it('mint erc20 allowance too low', mint_erc20_allowance_too_low);
-        it('mint invalid nums', mint_invalid_nums);
-        it('mint 0 owners', mint_0_owners);
-        it('mint no tickets left', mint_no_tickets_left);
-        it('mint payment score too low', mint_payment_score_too_low);
-        it('mint invalid authorization signature count', mint_invalid_authorization_signature_count);
-        it('mint invalid authorization code count', mint_invalid_authorization_code_count);
-        it('mint authorization code duplicate', mint_authorization_code_duplicate);
-        it('mint authorization code duplicate (two tx)', mint_authorization_code_duplicate_two_tx);
-        it('mint invalid authorization signature', mint_invalid_authorization_signature);
-        it('mint useless signature', mint_useless_signature);
-        it('mint useless code', mint_useless_code);
+    //     it('mint 10 owners 2 currencies with authorization', mint_10_owners_2_currencies_with_authorization);
+    //     it('mint 10 owners 2 currencies without authorization', mint_10_owners_2_currencies_without_authorization);
+    //     it('mint erc20 invalid nums', mint_erc20_invalid_nums);
+    //     it('mint erc20 invalid addr', mint_erc20_invalid_addr);
+    //     it('mint erc20 unauthorized currency', mint_erc20_unauthorized_currency);
+    //     it('mint erc20 invalid currency', mint_erc20_invalid_currency);
+    //     it('mint erc20 allowance too low', mint_erc20_allowance_too_low);
+    //     it('mint invalid nums', mint_invalid_nums);
+    //     it('mint 0 owners', mint_0_owners);
+    //     it('mint no tickets left', mint_no_tickets_left);
+    //     it('mint payment score too low', mint_payment_score_too_low);
+    //     it('mint invalid authorization signature count', mint_invalid_authorization_signature_count);
+    //     it('mint invalid authorization code count', mint_invalid_authorization_code_count);
+    //     it('mint authorization code duplicate', mint_authorization_code_duplicate);
+    //     it('mint authorization code duplicate (two tx)', mint_authorization_code_duplicate_two_tx);
+    //     it('mint invalid authorization signature', mint_invalid_authorization_signature);
+    //     it('mint useless signature', mint_useless_signature);
+    //     it('mint useless code', mint_useless_code);
 
-    });
+    // });
 
     describe('Utils', function () {
 
         it('getTicketAffiliation', getTicketAffiliation);
         it('setFeeCollector from non owner', setFeeCollector_from_non_owner);
+        it('getGroupID', getGroupID)
 
     });
 
-    describe('Scope Index', function () {
+    // describe('Scope Index', function () {
 
-        it('setScopeIndex unauthorized account', setScopeIndex_unauthorized_account);
+    //     it('setScopeIndex unauthorized account', setScopeIndex_unauthorized_account);
 
-    });
+    // });
 
-    describe('Whitelisting', function () {
+    // describe('Whitelisting', function () {
 
-        it('useless unwhitelisting', useless_unwhitelisting);
+    //     it('useless unwhitelisting', useless_unwhitelisting);
 
-    });
+    // });
 
-    describe('Group', function () {
+    // describe('Group', function () {
 
-        it('createGroup', createGroup);
-        it('addAdmin', addAdmin);
-        it('addAdmin from non owner', addAdmin_from_non_owner);
-        it('addAdmin already admin', addAdmin_already_admin);
-        it('removeAdmin', removeAdmin);
-        it('removeAdmin from non owner', removeAdmin_from_non_owner);
-        it('removeAdmin not already admin', removeAdmin_not_already_admin);
+    //     it('createGroup', createGroup);
+    //     it('addAdmin', addAdmin);
+    //     it('addAdmin from non owner', addAdmin_from_non_owner);
+    //     it('addAdmin already admin', addAdmin_already_admin);
+    //     it('removeAdmin', removeAdmin);
+    //     it('removeAdmin from non owner', removeAdmin_from_non_owner);
+    //     it('removeAdmin not already admin', removeAdmin_not_already_admin);
 
-    });
+    // });
 
 });

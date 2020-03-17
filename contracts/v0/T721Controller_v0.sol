@@ -167,6 +167,13 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
         return groups[group_id].balances[currency];
     }
 
+    function getGroupID(address owner, string memory id) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked(
+                owner,
+                id
+            ));
+    }
+
     //
     // @notice Retrieve the fee to apply for a specific ERC20 currency and amount
     //
