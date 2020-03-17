@@ -168,7 +168,7 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
     }
 
     function getGroupID(address owner, string memory id) public pure returns (bytes32) {
-        return keccak256(abi.encodePacked(
+        return keccak256(abi.encode(
                 owner,
                 id
             ));

@@ -66,4 +66,5 @@ coverage.json
 
 .openzeppelin/.session
 .openzeppelin/dev*
-
+.coverage_artifacts
+.coverage_contracts
