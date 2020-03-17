@@ -74,9 +74,6 @@ contract('T721Controller_v0', (accounts) => {
         const T721ControllerArtifact = artifacts.require(T721C_CONTRACT_NAME);
         const T721ControllerInstance = await T721ControllerArtifact.deployed();
 
-        const T721AttachmentsControllerArtifact = artifacts.require(T721AC_CONTRACT_NAME);
-        const T721AttachmentsControllerInstance = await T721AttachmentsControllerArtifact.deployed();
-
         const ERC20MockArtifact = artifacts.require('ERC20Mock_v0');
         const DaiMockArtifact = artifacts.require('DaiMock_v0');
         const ERC721MockArtifact = artifacts.require('ERC721Mock_v0');
@@ -85,13 +82,9 @@ contract('T721Controller_v0', (accounts) => {
         const DaiInstance = await DaiMockArtifact.deployed();
         const ERC721Instance = await ERC721MockArtifact.deployed();
 
-        //await ERC721Instance.createScope(SCOPE_NAME, '0x0000000000000000000000000000000000000000', [MetaMarketplaceInstance.address], []);
-        //const scope = await ERC721Instance.getScope(SCOPE_NAME);
-        //setScopeIndex(scope.scope_index.toNumber());
 
         this.contracts = {
             [T721C_CONTRACT_NAME]: T721ControllerInstance,
-            [T721AC_CONTRACT_NAME]: T721AttachmentsControllerInstance,
             Dai: DaiInstance,
             ERC721: ERC721Instance,
             ERC20: ERC20Instance,
@@ -166,8 +159,6 @@ contract('T721Controller_v0', (accounts) => {
 
     describe('Utils', function () {
 
-        it('getTicketAffiliation', getTicketAffiliation);
-        it('setFeeCollector from non owner', setFeeCollector_from_non_owner);
         it('getGroupID', getGroupID)
 
     });

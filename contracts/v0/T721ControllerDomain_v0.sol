@@ -26,35 +26,31 @@ contract T721ControllerDomain_v0 {
 
     bytes32 DOMAIN_SEPARATOR;
 
-    struct MintingAuthorization {
-        uint256 code;
+    struct Authorization {
         address emitter;
-        address minter;
-        bytes32 group;
-        bytes32 category;
+        address grantee;
+        bytes32 hash;
     }
 
-    bytes32 constant MINTINGAUTHORIZATION_TYPEHASH = keccak256(
-        "MintingAuthorization(uint256 code,address emitter,address minter,bytes32 group,bytes32 category)"
+    bytes32 constant AUTHORIZATION_TYPEHASH = keccak256(
+        "Authorization(address emitter,address grantee,bytes32 hash)"
     );
 
-    function hash(MintingAuthorization memory mauth) internal pure returns (bytes32) {
+    function hash(Authorization memory auth) internal pure returns (bytes32) {
         return keccak256(abi.encode(
-                MINTINGAUTHORIZATION_TYPEHASH,
-                mauth.code,
-                mauth.emitter,
-                mauth.minter,
-                mauth.group,
-                mauth.category
+                AUTHORIZATION_TYPEHASH,
+                auth.emitter,
+                auth.grantee,
+                auth.hash
             ));
     }
 
-    function verify(MintingAuthorization memory mauth, bytes memory raw_signature) internal view returns (address) {
+    function verify(Authorization memory auth, bytes memory raw_signature) internal view returns (address) {
         SigUtil_v0.Signature memory signature = SigUtil_v0._splitSignature(raw_signature);
         bytes32 digest = keccak256(abi.encodePacked(
                 "\x19\x01",
                 DOMAIN_SEPARATOR,
-                hash(mauth)
+                hash(auth)
             ));
 
         return ecrecover(digest, signature.v, signature.r, signature.s);
