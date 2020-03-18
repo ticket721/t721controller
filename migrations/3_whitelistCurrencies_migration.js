@@ -1,10 +1,5 @@
 const T721Controller_v0 = artifacts.require('T721Controller_v0');
-const DaiMock_v0 = artifacts.require("DaiMock_v0");
-const ERC20Mock_v0 = artifacts.require("ERC20Mock_v0");
-const ERC721Mock_v0 = artifacts.require("ERC721Mock_v0");
 const config = require('../truffle-config');
-
-const ZADDRESS = '0x0000000000000000000000000000000000000000';
 
 const hasArtifact = (name) => {
     return (config && config.artifacts

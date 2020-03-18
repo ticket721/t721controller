@@ -4,7 +4,7 @@ const { Wallet } = require('ethers');
 
 // Mint 5 tickets, with 2 currencies
 module.exports = {
-    getTicketAffiliation: async function getTicketAffiliation() {
+    isCodeConsummable: async function isCodeConsummable() {
 
         const { accounts, expect } = this;
 
@@ -91,8 +91,8 @@ module.exports = {
         expect((await Dai.balanceOf(accounts[9])).toNumber()).to.equal(100);
         expect((await ERC20.balanceOf(accounts[9])).toNumber()).to.equal(100);
 
-        const firstTicket = await ERC721.tokenOfOwnerByIndex(accounts[0], 0);
-        const data = await T721Controller.getTicketAffiliation(firstTicket);
+        expect(await T721Controller.isCodeConsummable(1)).to.equal(false);
+        expect(await T721Controller.isCodeConsummable(10)).to.equal(true);
 
     },
 };

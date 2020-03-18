@@ -34,14 +34,10 @@ module.exports = async function(deployer, networkName, accounts) {
         const network_id = await web3.eth.net.getId();
 
         await deployer.deploy(ERC721Mock_v0);
-        const ERC721Instance = await ERC721Mock_v0.deployed();
-
         await deployer.deploy(ERC20Mock_v0);
-        const ERC20Instance = await ERC20Mock_v0.deployed();
-
         await deployer.deploy(DaiMock_v0);
-        const DaiInstance = await DaiMock_v0.deployed();
 
+        const ERC721Instance = await ERC721Mock_v0.deployed();
         await deployer.deploy(T721Controller_v0, ERC721Instance.address, network_id);
 
         const T721Controller_v0Instance = await T721Controller_v0.deployed();
@@ -52,9 +48,6 @@ module.exports = async function(deployer, networkName, accounts) {
 
         await T721Controller_v0Instance.setScopeIndex(scope_index);
         await T721Controller_v0Instance.setFeeCollector(accounts[9]);
-        console.log(`T721C: whitelisting erc20 ${ERC20Instance.address}`);
-        await T721Controller_v0Instance.whitelistCurrency(ERC20Instance.address, 10, 10);
-        await T721Controller_v0Instance.whitelistCurrency(DaiInstance.address, 10, 10);
 
     }
 };

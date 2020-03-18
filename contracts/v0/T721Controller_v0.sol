@@ -84,33 +84,6 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
     }
 
     //
-    // @notice Add an ERC20 address to the payment whitelist and sets the fix and variable fee values
-    //
-    // @param erc20_address Address to whitelist for ERC20 payments
-    //
-    // @param fix_fee Fix amount to collect on every payment made with this currency
-    //
-    // @param var_fee Percent to collect on every payment made with this currency. Max is 1000 (100%).
-    //
-    function whitelistCurrency(address _address, uint256 fix_fee, uint256 var_fee) public ownerOnly {
-        whitelist[_address] = Currency({
-            active: true,
-            fix: fix_fee,
-            variable: var_fee
-            });
-    }
-
-    //
-    // @notice Remove an ERC20 address from the payment whitelist
-    //
-    // @param erc20_address Address to remove from the payment whitelist
-    //
-    function removeCurrency(address _address) public ownerOnly {
-        require(whitelist[_address].active == true, "T721C::removeCurrency | useless transaction");
-        whitelist[_address].active = false;
-    }
-
-    //
     // @notice Retrieve the current balance for a group
     //
     // @param group ID of the group
@@ -129,26 +102,6 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
     }
 
     //
-    // @notice Retrieve the fee to apply for a specific ERC20 currency and amount
-    //
-    // @param erc20_address Currency to use for fee computation
-    //
-    // @param amount Total amount to tax
-    //
-    function getFee(address _address, uint256 amount) public view returns (uint256) {
-        require(amount >= whitelist[_address].fix,
-            "T721C::getFee | paid amount is under fixed fee");
-
-        if (whitelist[_address].variable != 0) {
-            return amount
-            .mul(whitelist[_address].variable)
-            .div(1000)
-            .add(whitelist[_address].fix);
-        }
-        return whitelist[_address].fix;
-    }
-
-    //
     // @notice Withdraw group funds
     //
     // @param group_id ID of the group
@@ -161,8 +114,15 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
     //
     // @param target Withdraw toward this address
     //
-    function withdraw(address event_controller, string calldata id, address currency, uint256 amount, address target, bytes calldata signature, uint256 code)
-    external {
+    function withdraw(
+        address event_controller,
+        string calldata id,
+        address currency,
+        uint256 amount,
+        address target,
+        uint256 code,
+        bytes calldata signature
+    ) external {
 
         bytes32 group = getGroupID(event_controller, id);
 
@@ -177,11 +137,12 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
             )
         );
 
-        require(verify(Authorization(event_controller, target, hash), signature) == event_controller, "T721C::withdraw | invalid signature");
+        require(verify(Authorization(event_controller, target, hash), signature) == event_controller,
+            "T721C::withdraw | invalid signature");
         require(balances[group][currency] >= amount, "T721C::withdraw | balance too low");
         consumeCode(code);
 
-        IERC20(currency).transfer(msg.sender, amount);
+        IERC20(currency).transfer(target, amount);
 
         balances[group][currency] = balances[group][currency].sub(amount);
 
@@ -194,7 +155,6 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
     }
 
     function executePayement(bytes32 group, uint256 amount, uint256 fee, address currency) internal {
-        require(whitelist[currency].active == true, "T721Controller::executePayment | unwhitelisted currency");
 
         IERC20(currency).transferFrom(msg.sender, address(this), amount);
         IERC20(currency).transferFrom(msg.sender, fee_collector, fee);
@@ -210,13 +170,19 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
     }
 
     function isCodeConsummable(uint256 code) public view returns (bool) {
-        return authorization_code_registry[code];
+        return !authorization_code_registry[code];
     }
 
-    function attach(string memory id, bytes32[] memory b32, uint256[] memory uints, address[] memory addr, bytes memory bs) public {
+    function attach(
+        string memory id,
+        bytes32[] memory b32,
+        uint256[] memory uints,
+        address[] memory addr,
+        bytes memory bs
+    ) public {
 
         uint256 uints_idx = 1;
-        uint256 addr_idx = 0;
+        uint256 addr_idx = 1;
         bytes memory prices = "";
         address event_controller;
 
@@ -238,11 +204,16 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
 
                 for (uint256 currency_idx = 0; currency_idx < currency_number; ++currency_idx) {
 
-                    prices = BytesUtil_v0.concat(prices, BytesUtil_v0.toBytes(uints[uints_idx + currency_idx]));
-                    prices = BytesUtil_v0.concat(prices, BytesUtil_v0.toBytes(uints[uints_idx + currency_idx + 1]));
-                    prices = BytesUtil_v0.concat(prices, BytesUtil_v0.toBytes(addr[addr_idx + currency_idx]));
+                    prices = BytesUtil_v0.concat(prices, abi.encode(uints[uints_idx + (currency_idx * 2)]));
+                    prices = BytesUtil_v0.concat(prices, abi.encode(uints[uints_idx + 1 + (currency_idx * 2)]));
+                    prices = BytesUtil_v0.concat(prices, abi.encode(addr[addr_idx + currency_idx]));
 
-                    executePayement(group, uints[uints_idx + currency_idx], uints[uints_idx + currency_idx + 1], addr[addr_idx + currency_idx]);
+                    executePayement(
+                        group,
+                        uints[uints_idx + (currency_idx * 2)],
+                        uints[uints_idx + 1 + (currency_idx * 2)],
+                        addr[addr_idx + currency_idx]
+                    );
 
                 }
 
@@ -265,7 +236,8 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
             require(attachment_number > 0, "T721C::attach | why would you attach 0 attachments ?");
             require(b32.length == attachment_number, "T721C::attach | not enough space on b32");
             require(uints.length - uints_idx == attachment_number * 3, "T721C::attach | not enough space on uints (2)");
-            require(bs.length / 65 == attachment_number && bs.length % 65 == 0, "T721C::attachment | not enough space or invalid length on bs");
+            require(bs.length / 65 == attachment_number && bs.length % 65 == 0,
+                "T721C::attachment | not enough space or invalid length on bs");
 
             for (uint256 attachment_idx = 0; attachment_idx < attachment_number; ++attachment_idx) {
 
@@ -298,7 +270,8 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
                     address ticket_owner = t721.ownerOf(uints[uints_idx + 2 + (attachment_idx * 3)]);
 
                     // Core verification, this is what controls the flow of minted tickets
-                    require(verify(Authorization(event_controller, ticket_owner, hash), signature) == event_controller, "T721C::attach | invalid signature");
+                    require(verify(Authorization(event_controller, ticket_owner, hash), signature) == event_controller,
+                        "T721C::attach | invalid signature");
 
                 }
 
@@ -322,10 +295,16 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
      *
      *
      */
-    function mint(string memory id, bytes32[] memory b32, uint256[] memory uints, address[] memory addr, bytes memory bs) public {
+    function mint(
+        string memory id,
+        bytes32[] memory b32,
+        uint256[] memory uints,
+        address[] memory addr,
+        bytes memory bs
+    ) public {
 
         uint256 uints_idx = 1;
-        uint256 addr_idx = 0;
+        uint256 addr_idx = 1;
         bytes memory prices = "";
         address event_controller;
         bytes32 group;
@@ -345,16 +324,21 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
 
                 // Now that we now the number of currencies used for payment, we can verify that the required amount
                 // of arguments in uints and addr are respected
-                require(uints.length >= (currency_number * 2) + 1, "T721C::mint | not enough space on uints (1)");
-                require(addr.length >= currency_number, "T721C::mint | not enough space on addr (1)");
+                require(uints.length - 1 >= (currency_number * 2), "T721C::mint | not enough space on uints (1)");
+                require(addr.length - 1 >= currency_number, "T721C::mint | not enough space on addr (1)");
 
                 for (uint256 currency_idx = 0; currency_idx < currency_number; ++currency_idx) {
 
-                    prices = BytesUtil_v0.concat(prices, BytesUtil_v0.toBytes(uints[uints_idx + currency_idx]));
-                    prices = BytesUtil_v0.concat(prices, BytesUtil_v0.toBytes(uints[uints_idx + currency_idx + 1]));
-                    prices = BytesUtil_v0.concat(prices, BytesUtil_v0.toBytes(addr[addr_idx + currency_idx]));
+                    prices = BytesUtil_v0.concat(prices, abi.encode(uints[uints_idx + (currency_idx * 2)]));
+                    prices = BytesUtil_v0.concat(prices, abi.encode(uints[uints_idx + 1 + (currency_idx * 2)]));
+                    prices = BytesUtil_v0.concat(prices, abi.encode(addr[addr_idx + currency_idx]));
 
-                    executePayement(group, uints[uints_idx + currency_idx], uints[uints_idx + currency_idx + 1], addr[addr_idx + currency_idx]);
+                    executePayement(
+                        group,
+                        uints[uints_idx + (currency_idx * 2)],
+                        uints[uints_idx + 1 + (currency_idx * 2)],
+                        addr[addr_idx + currency_idx]
+                    );
 
                 }
 
@@ -378,7 +362,8 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
             // Being the last step, we can now verify exact amounts of arguments, and not a minimum required
             require(ticket_number > 0, "T721C::mint | why would you mint 0 tickets ?");
             require(b32.length == ticket_number, "T721C::mint | not enough space on b32");
-            require(bs.length / 65 == ticket_number && bs.length % 65 == 0, "T721C::mint | not enough space or invalid length on bs");
+            require(bs.length / 65 == ticket_number && bs.length % 65 == 0,
+                "T721C::mint | not enough space or invalid length on bs");
             require(addr.length - addr_idx == ticket_number, "T721C::mint | not enough space on addr (2)");
             require(uints.length - uints_idx == ticket_number, "T721C::mint | not enough space on uints (2)");
 
@@ -403,7 +388,8 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
                         ));
 
                     // Core verification, this is what controls the flow of minted tickets
-                    require(verify(Authorization(event_controller, ticket_owner, hash), signature) == event_controller, "T721C::mint | invalid signature");
+                    require(verify(Authorization(event_controller, ticket_owner, hash), signature) == event_controller,
+                        "T721C::mint | invalid signature");
                     consumeCode(code);
 
                 }

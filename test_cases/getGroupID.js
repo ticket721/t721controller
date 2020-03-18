@@ -1,4 +1,5 @@
-const { T721C_CONTRACT_NAME } = require('./constants');
+const { encodeAndHash } = require('../test/utils');
+const { T721C_CONTRACT_NAME } = require('../test/constants');
 
 module.exports = {
     getGroupID: async function getGroupID() {
@@ -8,8 +9,7 @@ module.exports = {
         const T721Controller = this.contracts[T721C_CONTRACT_NAME];
 
         const uuid = 'c4758045-fe85-4935-8e2e-fab04966907d'.toLowerCase();
-        const encoded = web3.eth.abi.encodeParameters(['address', 'string'], [accounts[0], uuid]);
-        const result = web3.utils.keccak256(encoded);
+        const result = encodeAndHash(['address', 'string'], [accounts[0], uuid]);
 
         const groupId = await T721Controller.getGroupID(accounts[0], uuid);
 

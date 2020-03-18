@@ -1,10 +1,10 @@
-const { Authorizer, generateMintPayload } = require('../test/utils');
+const { Authorizer, generateMintPayload, getGroupID } = require('../test/utils');
 const { T721C_CONTRACT_NAME } = require('../test/constants');
 const { Wallet } = require('ethers');
 
 // Mint 5 tickets, with 2 currencies
 module.exports = {
-    getTicketAffiliation: async function getTicketAffiliation() {
+    balanceOf: async function balanceOf() {
 
         const { accounts, expect } = this;
 
@@ -91,8 +91,9 @@ module.exports = {
         expect((await Dai.balanceOf(accounts[9])).toNumber()).to.equal(100);
         expect((await ERC20.balanceOf(accounts[9])).toNumber()).to.equal(100);
 
-        const firstTicket = await ERC721.tokenOfOwnerByIndex(accounts[0], 0);
-        const data = await T721Controller.getTicketAffiliation(firstTicket);
+        const groupId = getGroupID(eventControllerWallet.address, uuid);
 
+        expect((await T721Controller.balanceOf(groupId, Dai.address)).toNumber()).to.equal(900);
+        expect((await T721Controller.balanceOf(groupId, ERC20.address)).toNumber()).to.equal(900);
     },
 };
