@@ -143,6 +143,95 @@ const generateMintPayload = async (uuid, payments, tickets, eventController, sig
 
 };
 
+const generateWithdrawPayload = async (event_controller_wallet, id, currency, amount, target, code, signer) => {
+
+    const groupId = getGroupID(event_controller_wallet.address, id);
+
+    const hash = encodeAndHash(
+        ['string', 'bytes32', 'address', 'uint256', 'address', 'uint256'],
+        ['withdraw', groupId, currency, amount, target, code]
+    );
+
+    const authorization = {
+        emitter: event_controller_wallet.address,
+        grantee: target,
+        hash,
+    };
+
+    const payload = signer.generatePayload(authorization, 'Authorization');
+    const signature = await signer.sign(event_controller_wallet.privateKey, payload);
+
+    return [
+        event_controller_wallet.address,
+        id,
+        currency,
+        amount,
+        target,
+        code,
+        signature.hex
+    ]
+
+};
+
+const generateAttachPayload = async (uuid, payments, attachments, eventController, signer) => {
+
+    const b32 = [];
+    const addr = [];
+    const uints = [];
+    let bs = '0x';
+
+    let prices = '';
+
+    uints.push(payments.length);
+    addr.push(eventController.address);
+
+    for (const payment of payments) {
+        // Add Price
+        uints.push(payment.amount);
+        prices = `${prices}${encodedU256(payment.amount)}`;
+        uints.push(payment.fee);
+        prices = `${prices}${encodedU256(payment.fee)}`;
+        addr.push(payment.currency);
+        prices = `${prices}${encodeAddress(payment.currency)}`;
+    }
+
+    uints.push(attachments.length);
+
+    for (const attachment of attachments) {
+
+        uints.push(attachment.amount);
+        uints.push(attachment.code);
+        uints.push(attachment.ticket_id);
+
+        b32.push(strToB32(attachment.attachment));
+
+        const hash = encodeAndHash(
+            ['string', 'bytes', 'bytes32', 'uint256', 'uint256'],
+            ['attach', `0x${prices}`, strToB32(attachment.attachment), attachment.amount, attachment.code]
+        );
+
+        const authorization = {
+            emitter: eventController.address,
+            grantee: attachment.ticket_owner,
+            hash,
+        };
+
+        const payload = signer.generatePayload(authorization, 'Authorization');
+        const signature = await signer.sign(eventController.privateKey, payload);
+
+        bs = `${bs}${signature.hex.slice(2)}`;
+    }
+
+    return [
+        uuid,
+        b32,
+        uints,
+        addr,
+        bs
+    ];
+
+};
+
 const getGroupID = (address, id) => {
     return web3.utils.keccak256(web3.eth.abi.encodeParameters(['address', 'string'], [address, id]));
 }
@@ -158,5 +247,7 @@ module.exports = {
     encodedU256,
     encodeAddress,
     generateMintPayload,
+    generateWithdrawPayload,
+    generateAttachPayload,
     getGroupID,
 };

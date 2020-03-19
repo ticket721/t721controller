@@ -4,7 +4,7 @@ const { Wallet } = require('ethers');
 
 // Mint 5 tickets, with 2 currencies
 module.exports = {
-    withdraw: async function withdraw() {
+    withdraw_invalid_signature: async function withdraw_invalid_signature() {
 
         const { accounts, expect } = this;
 
@@ -95,29 +95,13 @@ module.exports = {
         }
 
         const daiWithdrawCode = 6;
-        const erc20WithdrawCode_one = 7;
-        const erc20WithdrawCode_two = 8;
 
         {
             const [event_controller, id, currency, amount, target, code, signature] = await generateWithdrawPayload(eventControllerWallet, uuid, Dai.address, 900, accounts[8], daiWithdrawCode, signer);
 
-            await T721Controller.withdraw(event_controller, id, currency, amount, target, code, signature)
+            await expect(T721Controller.withdraw(event_controller, id, currency, amount, target, code + 1, signature)).to.eventually.be.rejectedWith('T721C::withdraw | invalid signature');
         }
 
-        {
-            const [event_controller, id, currency, amount, target, code, signature] = await generateWithdrawPayload(eventControllerWallet, uuid, ERC20.address, 400, accounts[8], erc20WithdrawCode_one, signer);
-
-            await T721Controller.withdraw(event_controller, id, currency, amount, target, code, signature)
-        }
-
-        {
-            const [event_controller, id, currency, amount, target, code, signature] = await generateWithdrawPayload(eventControllerWallet, uuid, ERC20.address, 500, accounts[8], erc20WithdrawCode_two, signer);
-
-            await T721Controller.withdraw(event_controller, id, currency, amount, target, code, signature)
-        }
-
-        expect((await ERC20.balanceOf(accounts[8])).toNumber()).to.equal(900);
-        expect((await Dai.balanceOf(accounts[8])).toNumber()).to.equal(900);
 
     },
 };

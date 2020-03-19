@@ -1,66 +1,6 @@
-const { Authorizer, generateMintPayload, encodeAndHash, encodeAddress, encodedU256, strToB32 } = require('../test/utils');
+const { Authorizer, generateMintPayload, strToB32, generateAttachPayload } = require('../test/utils');
 const { T721C_CONTRACT_NAME } = require('../test/constants');
 const { Wallet } = require('ethers');
-
-const generateAttachPayload = async (uuid, payments, attachments, eventController, signer) => {
-    const groupId = encodeAndHash(['address', 'string'], [eventController.address, uuid]);
-
-    const b32 = [];
-    const addr = [];
-    const uints = [];
-    let bs = '0x';
-
-    let prices = '';
-
-    uints.push(payments.length);
-    addr.push(eventController.address);
-
-    for (const payment of payments) {
-        // Add Price
-        uints.push(payment.amount);
-        prices = `${prices}${encodedU256(payment.amount)}`;
-        uints.push(payment.fee);
-        prices = `${prices}${encodedU256(payment.fee)}`;
-        addr.push(payment.currency);
-        prices = `${prices}${encodeAddress(payment.currency)}`;
-    }
-
-    uints.push(attachments.length);
-
-    for (const attachment of attachments) {
-
-        uints.push(attachment.amount);
-        uints.push(attachment.code);
-        uints.push(attachment.ticket_id);
-
-        b32.push(strToB32(attachment.attachment));
-
-        const hash = encodeAndHash(
-            ['string', 'bytes', 'bytes32', 'uint256', 'uint256'],
-            ['attach', `0x${prices}`, strToB32(attachment.attachment), attachment.amount, attachment.code]
-        );
-
-        const authorization = {
-            emitter: eventController.address,
-            grantee: attachment.ticket_owner,
-            hash,
-        };
-
-        const payload = signer.generatePayload(authorization, 'Authorization');
-        const signature = await signer.sign(eventController.privateKey, payload);
-
-        bs = `${bs}${signature.hex.slice(2)}`;
-    }
-
-    return [
-        uuid,
-        b32,
-        uints,
-        addr,
-        bs
-    ];
-
-};
 
 // Mint 5 tickets, with 2 currencies
 module.exports = {
