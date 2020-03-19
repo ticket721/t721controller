@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "./T721ControllerDomain_v0.sol";
 import "./BytesUtil_v0.sol";
 
-// @notice the T721Controller handles all the ticket categories and minting
+// @notice the T721Controller handles all the ticket minting and attachments
 contract T721Controller_v0 is T721ControllerDomain_v0 {
 
     using SafeMath for uint256;
@@ -46,8 +46,7 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
     address                             public fee_collector;
     mapping (address => uint)           public group_nonce;
     mapping (uint256 => Affiliation)    public tickets;
-    mapping (address => Currency)       public whitelist;
-    mapping (uint256 => bool)           public authorization_code_registry;
+    mapping (address => mapping (uint256 => bool))           public authorization_code_registry;
 
     constructor(address _t721, uint256 _chain_id)
     T721ControllerDomain_v0("T721 Controller", "0", _chain_id)
@@ -57,43 +56,50 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
         fee_collector = msg.sender;
     }
 
-    //
-    // @notice Modifier to prevent non-owner message senders
-    //
+    /*
+     *  @notice Modifier to prevent non-owner message senders
+     */
     modifier ownerOnly() {
         require(msg.sender == owner, "T721C::ownerOnly | unauthorized account");
         _;
     }
 
-    //
-    // @notice Set scope index of the tickets to create
-    //
-    // @param _scope_index Scope index to use
-    //
+    /*
+     *  @notice Set scope index of the tickets to create
+     *
+     *  @param _scope_index Scope index to use
+     */
     function setScopeIndex(uint256 _scope_index) external ownerOnly {
         scope_index = _scope_index;
     }
 
-    //
-    // @notice Set the address receiving all collected fees
-    //
-    // @param fee_collector_address Address receiving all cllected fees
-    //
+    /*
+     *  @notice Set the address receiving all collected fees
+     *
+     *  @param fee_collector_address Address receiving all cllected fees
+     */
     function setFeeCollector(address fee_collector_address) public ownerOnly {
         fee_collector = fee_collector_address;
     }
 
-    //
-    // @notice Retrieve the current balance for a group
-    //
-    // @param group ID of the group
-    //
-    // @param currency Currency balance to inspect
-    //
+    /**
+     * @notice Retrieve the current balance for a group
+     *
+     * @param group ID of the group
+     *
+     * @param currency Currency balance to inspect
+     */
     function balanceOf(bytes32 group, address currency) public view returns (uint256) {
         return balances[group][currency];
     }
 
+    /**
+     * @notice Get identifier for the combo controller + id
+     *
+     * @param _owner The address of the controller
+     *
+     * @param id The id of the event
+     */
     function getGroupID(address _owner, string memory id) public pure returns (bytes32) {
         return keccak256(abi.encode(
                 _owner,
@@ -101,19 +107,23 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
             ));
     }
 
-    //
-    // @notice Withdraw group funds
-    //
-    // @param group_id ID of the group
-    //
-    // @param currency Currency to withdraw
-    //
-    // @param amount Amount to withdraw
-    //
-    // @param mode 1 for ERC20, 2 for ERC2280. Sets withdraw method
-    //
-    // @param target Withdraw toward this address
-    //
+    /**
+     * @notice Withdraw event funds
+     *
+     * @param event_controller The address controlling the event
+     *
+     * @param id The event identifier
+     *
+     * @param currency The currency to withdraw
+     *
+     * @param amount The amount to withdraw
+     *
+     * @param target The recipient of the withdraw
+     *
+     * @param code The authorization code
+     *
+     * @param signature The signature to use to withdraw
+     */
     function withdraw(
         address event_controller,
         string calldata id,
@@ -140,7 +150,7 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
         require(verify(Authorization(event_controller, target, hash), signature) == event_controller,
             "T721C::withdraw | invalid signature");
         require(balances[group][currency] >= amount, "T721C::withdraw | balance too low");
-        consumeCode(code);
+        consumeCode(event_controller, code);
 
         IERC20(currency).transfer(target, amount);
 
@@ -148,10 +158,39 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
 
     }
 
+    /**
+     * @notice Utility to recover group and category for a ticket id
+     *
+     * @param ticket_id The unique ticket id
+     */
     function getTicketAffiliation(
         uint256 ticket_id
     ) external view returns (bool active, bytes32 group, bytes32 category) {
         return (tickets[ticket_id].active, tickets[ticket_id].group, tickets[ticket_id].category);
+    }
+
+    /**
+     * @notice Helper used to verify if a unique consummable ID is available
+     *
+     * @param owner The ticket issuer address
+     *
+     * @param code The code to consume
+     */
+    function consumeCode(address owner, uint256 code) internal {
+        require(authorization_code_registry[owner][code] == false, "T721C::consumeCode | code already used");
+
+        authorization_code_registry[owner][code] = true;
+    }
+
+    /**
+     * @notice Helper used to verify if a unique consummable ID is available
+     *
+     * @param owner The ticket issuer address
+     *
+     * @param code The code to verify
+     */
+    function isCodeConsummable(address owner, uint256 code) public view returns (bool) {
+        return !authorization_code_registry[owner][code];
     }
 
     function executePayement(bytes32 group, uint256 amount, uint256 fee, address currency) internal {
@@ -163,16 +202,75 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
 
     }
 
-    function consumeCode(uint256 code) internal {
-        require(authorization_code_registry[code] == false, "T721C::consumeCode | code already used");
-
-        authorization_code_registry[code] = true;
-    }
-
-    function isCodeConsummable(uint256 code) public view returns (bool) {
-        return !authorization_code_registry[code];
-    }
-
+    /**
+     * @notice This is the core pre-purchase creation method. It binds attachments in exchange of payment.
+     *
+     * @param id This is the identifier of the event. When combining event controller address and this is, we get a
+     *           unique identifier used to regroup the tickets.
+     *
+     * @param b32 This parameter contains all the bytes32 arguments required to pay and mint the tickets
+     *
+     *                                +> There are no bytes32 arguments for the payment logics
+     *        |                       |
+     *
+     *                                +> These are the arguments used for the attachment logics
+     *        | attachment_1_category | < An attachment name is specified for each attachment
+     *        | attachment_2_category |
+     *        | attachment_3_category |
+     *        | attachment_4_category |
+     *        | attachment_5_category |
+     *
+     * @param uints This parameter contains all the uin256 arguments required to pay and attach the attachments
+     *
+     *                            +> These are the arguments used for the payment logics
+     *        | currency_count    | < This is the number of currency to use for the payment (in our example: 2)
+     *        | currency_1_price  | < For each currency, the price paid to the organizer
+     *        | currency_1_fee    | < For each currency, the extra fee for T721
+     *        | currency_2_price  |
+     *        | currency_2_fee    |
+     *
+     *                            +> These are the arguments used for the minting process
+     *        | attachment_count  | < This is the number of tickets to mint
+     *        | amount_1          | < The amount of attachment to add for this type.
+     *        | code_1            | < The authorization code
+     *        | ticket_id_1       | < The ID of the ticket on which to bind the attachments
+     *        | amount_2          |
+     *        | code_2            |
+     *        | ticket_id_2       |
+     *        | amount_3          |
+     *        | code_3            |
+     *        | ticket_id_3       |
+     *        | amount_4          |
+     *        | code_4            |
+     *        | ticket_id_4       |
+     *        | amount_5          |
+     *        | code_5            |
+     *        | ticket_id_5       |
+     *
+     * @param addr This parameter contains all the address arguments required to pay and attach the attachments
+     *
+     *                            +> These are the arguments used for the payment logics
+     *        | event_controller  | < The address of the controller
+     *        | currency_1        | < The address of each currency
+     *        | currency_2        |
+     *
+     *                            +> There are no address arguments for attachment process
+     *        |                   |
+     *
+     * @param bs This parameter contains bytes used to pay and attach the attachments. The notation argument[23]
+     *           means it's a 23 bytes segment.
+     *
+     *                            +> There are no bytes arguments for the payment process
+     *        |                   |
+     *
+     *                            +> These are the arguments used for the attachment process
+     *        | auth_sig_1[65]     | < For each attachment, an authorization signature made of unique parameters
+     *        | auth_sig_2[65]     |
+     *        | auth_sig_3[65]     |
+     *        | auth_sig_4[65]     |
+     *        | auth_sig_5[65]     |
+     *
+     */
     function attach(
         string memory id,
         bytes32[] memory b32,
@@ -262,7 +360,7 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
                             code
                         );
 
-                        consumeCode(code);
+                        consumeCode(event_controller, code);
                     }
 
                     bytes32 hash = keccak256(encoded);
@@ -292,7 +390,68 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
     }
 
     /**
+     * @notice This is the core ticket creation method. With a proper signature from the event controller, the method
+     *         can release several tickets for a payment made from one or more currencies (or for free). All examples
+     *         below show a use case where we use 2 payment methods to mint 5 tickets.
      *
+     * @param id This is the identifier of the event. When combining event controller address and this is, we get a
+     *           unique identifier used to regroup the tickets.
+     *
+     * @param b32 This parameter contains all the bytes32 arguments required to pay and mint the tickets
+     *
+     *                            +> There are no bytes32 arguments for the payment logics
+     *        |                   |
+     *
+     *                            +> These are the arguments used for the minting logics
+     *        | ticket_1_category | < A category is specified for each ticket
+     *        | ticket_2_category |
+     *        | ticket_3_category |
+     *        | ticket_4_category |
+     *        | ticket_5_category |
+     *
+     * @param uints This parameter contains all the uin256 arguments required to pay and mint the tickets
+     *
+     *                            +> These are the arguments used for the payment logics
+     *        | currency_count    | < This is the number of currency to use for the payment (in our example: 2)
+     *        | currency_1_price  | < For each currency, the price paid to the organizer
+     *        | currency_1_fee    | < For each currency, the extra fee for T721
+     *        | currency_2_price  |
+     *        | currency_2_fee    |
+     *
+     *                            +> These are the arguments used for the minting process
+     *        | ticket_count      | < This is the number of tickets to mint
+     *        | code_1            | < For each ticket, an authorization code is required. It is mixed with the
+     *        | code_2            |   signature to prevent replay attacks. It must be unique.
+     *        | code_3            |
+     *        | code_4            |
+     *        | code_5            |
+     *
+     * @param addr This parameter contains all the address arguments required to pay and mint the tickets
+     *
+     *                            +> These are the arguments used for the payment logics
+     *        | event_controller  | < The address of the controller
+     *        | currency_1        | < The address of each currency
+     *        | currency_2        |
+     *
+     *                            +> These are the arguments used for the minting process
+     *        | owner_1            | < For each ticket, its owner
+     *        | owner_2            |
+     *        | owner_3            |
+     *        | owner_4            |
+     *        | owner_5            |
+     *
+     * @param bs This parameter contains bytes used to pay and mint the tickets. The notation argument[23] means it's
+     *           a 23 bytes segment.
+     *
+     *                            +> There are no bytes arguments for the payment process
+     *        |                   |
+     *
+     *                            +> These are the arguments used for the minting process
+     *        | auth_sig_1[65]     | < For each ticket, an authorization signature made of unique parameters
+     *        | auth_sig_2[65]     |
+     *        | auth_sig_3[65]     |
+     *        | auth_sig_4[65]     |
+     *        | auth_sig_5[65]     |
      *
      */
     function mint(
@@ -390,7 +549,7 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
                     // Core verification, this is what controls the flow of minted tickets
                     require(verify(Authorization(event_controller, ticket_owner, hash), signature) == event_controller,
                         "T721C::mint | invalid signature");
-                    consumeCode(code);
+                    consumeCode(event_controller, code);
 
                 }
 

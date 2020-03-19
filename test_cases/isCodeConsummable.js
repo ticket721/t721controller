@@ -91,8 +91,10 @@ module.exports = {
         expect((await Dai.balanceOf(accounts[9])).toNumber()).to.equal(100);
         expect((await ERC20.balanceOf(accounts[9])).toNumber()).to.equal(100);
 
-        expect(await T721Controller.isCodeConsummable(1)).to.equal(false);
-        expect(await T721Controller.isCodeConsummable(10)).to.equal(true);
+        expect(await T721Controller.isCodeConsummable(eventControllerWallet.address, 1)).to.equal(false);
+        expect(await T721Controller.isCodeConsummable(accounts[0], 1)).to.equal(true);
+        expect(await T721Controller.isCodeConsummable(eventControllerWallet.address, 10)).to.equal(true);
+        expect(await T721Controller.isCodeConsummable(accounts[0], 10)).to.equal(true);
 
     },
 };
