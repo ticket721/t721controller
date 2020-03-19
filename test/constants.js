@@ -1,0 +1,10 @@
+
+const T721C_CONTRACT_NAME = 'T721Controller_v0';
+const CHAIN_ID = 1;
+const ZADDRESS = '0x0000000000000000000000000000000000000000';
+
+module.exports = {
+    CHAIN_ID,
+    ZADDRESS,
+    T721C_CONTRACT_NAME,
+};

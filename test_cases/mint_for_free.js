@@ -4,7 +4,7 @@ const { Wallet } = require('ethers');
 
 // Mint 5 tickets, with 2 currencies
 module.exports = {
-    getTicketAffiliation: async function getTicketAffiliation() {
+    mint_for_free: async function mint_for_free() {
 
         const { accounts, expect } = this;
 
@@ -15,18 +15,7 @@ module.exports = {
 
         const eventControllerWallet = Wallet.createRandom();
 
-        const payments = [
-            {
-                currency: Dai.address,
-                amount: 900,
-                fee: 100,
-            },
-            {
-                currency: ERC20.address,
-                amount: 900,
-                fee: 100,
-            },
-        ];
+        const payments = [];
 
         const tickets = [
             {
@@ -88,11 +77,8 @@ module.exports = {
         expect((await ERC721.balanceOf(accounts[3])).toNumber()).to.equal(1);
         expect((await ERC721.balanceOf(accounts[4])).toNumber()).to.equal(1);
 
-        expect((await Dai.balanceOf(accounts[9])).toNumber()).to.equal(100);
-        expect((await ERC20.balanceOf(accounts[9])).toNumber()).to.equal(100);
-
-        const firstTicket = await ERC721.tokenOfOwnerByIndex(accounts[0], 0);
-        const data = await T721Controller.getTicketAffiliation(firstTicket);
+        expect((await Dai.balanceOf(accounts[9])).toNumber()).to.equal(0);
+        expect((await ERC20.balanceOf(accounts[9])).toNumber()).to.equal(0);
 
     },
 };

@@ -1,10 +1,10 @@
-const { Authorizer, generateMintPayload } = require('../test/utils');
+const { Authorizer, generateMintPayload, strToB32, generateAttachPayload } = require('../test/utils');
 const { T721C_CONTRACT_NAME } = require('../test/constants');
 const { Wallet } = require('ethers');
 
 // Mint 5 tickets, with 2 currencies
 module.exports = {
-    getTicketAffiliation: async function getTicketAffiliation() {
+    attach_no_attachment: async function attach_no_attachment() {
 
         const { accounts, expect } = this;
 
@@ -65,21 +65,22 @@ module.exports = {
 
         await Dai.approve(T721Controller.address, 1000);
         await ERC20.approve(T721Controller.address, 1000);
+        {
+            const [id, b32, uints, addr, bs] = await generateMintPayload(uuid, payments, tickets, eventControllerWallet, signer);
 
-        const [id, b32, uints, addr, bs] = await generateMintPayload(uuid, payments, tickets, eventControllerWallet, signer);
+            expect((await ERC721.balanceOf(accounts[0])).toNumber()).to.equal(0);
+            expect((await ERC721.balanceOf(accounts[1])).toNumber()).to.equal(0);
+            expect((await ERC721.balanceOf(accounts[2])).toNumber()).to.equal(0);
+            expect((await ERC721.balanceOf(accounts[3])).toNumber()).to.equal(0);
+            expect((await ERC721.balanceOf(accounts[4])).toNumber()).to.equal(0);
 
-        expect((await ERC721.balanceOf(accounts[0])).toNumber()).to.equal(0);
-        expect((await ERC721.balanceOf(accounts[1])).toNumber()).to.equal(0);
-        expect((await ERC721.balanceOf(accounts[2])).toNumber()).to.equal(0);
-        expect((await ERC721.balanceOf(accounts[3])).toNumber()).to.equal(0);
-        expect((await ERC721.balanceOf(accounts[4])).toNumber()).to.equal(0);
+            const tx = await T721Controller.mint(id, b32, uints, addr, bs);
 
-        const tx = await T721Controller.mint(id, b32, uints, addr, bs);
+            for (let idx = 0; idx < tx.logs.length; ++idx) {
 
-        for (let idx = 0; idx < tx.logs.length; ++idx) {
+                expect(tx.logs[idx].args.owner).to.equal(tickets[idx].owner);
 
-            expect(tx.logs[idx].args.owner).to.equal(tickets[idx].owner);
-
+            }
         }
 
         expect((await ERC721.balanceOf(accounts[0])).toNumber()).to.equal(1);
@@ -91,8 +92,20 @@ module.exports = {
         expect((await Dai.balanceOf(accounts[9])).toNumber()).to.equal(100);
         expect((await ERC20.balanceOf(accounts[9])).toNumber()).to.equal(100);
 
-        const firstTicket = await ERC721.tokenOfOwnerByIndex(accounts[0], 0);
-        const data = await T721Controller.getTicketAffiliation(firstTicket);
+        const ticket_id = await ERC721.tokenOfOwnerByIndex(accounts[0], 0);
+
+        const attachments = [
+        ];
+
+        await Dai.mint(accounts[0], 1000);
+        await ERC20.mint(accounts[0], 1000);
+
+        await Dai.approve(T721Controller.address, 1000);
+        await ERC20.approve(T721Controller.address, 1000);
+
+        const [id, b32, uints, addr, bs] = await generateAttachPayload(uuid, payments, attachments, eventControllerWallet, signer);
+
+        await expect(T721Controller.attach(id, b32, uints, addr, bs)).to.eventually.be.rejectedWith('T721C::attach | why would you attach 0 attachments ?');
 
     },
 };

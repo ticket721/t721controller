@@ -4,7 +4,7 @@ const { Wallet } = require('ethers');
 
 // Mint 5 tickets, with 2 currencies
 module.exports = {
-    getTicketAffiliation: async function getTicketAffiliation() {
+    mint_missing_currency_number: async function mint_missing_currency_number() {
 
         const { accounts, expect } = this;
 
@@ -74,25 +74,7 @@ module.exports = {
         expect((await ERC721.balanceOf(accounts[3])).toNumber()).to.equal(0);
         expect((await ERC721.balanceOf(accounts[4])).toNumber()).to.equal(0);
 
-        const tx = await T721Controller.mint(id, b32, uints, addr, bs);
-
-        for (let idx = 0; idx < tx.logs.length; ++idx) {
-
-            expect(tx.logs[idx].args.owner).to.equal(tickets[idx].owner);
-
-        }
-
-        expect((await ERC721.balanceOf(accounts[0])).toNumber()).to.equal(1);
-        expect((await ERC721.balanceOf(accounts[1])).toNumber()).to.equal(1);
-        expect((await ERC721.balanceOf(accounts[2])).toNumber()).to.equal(1);
-        expect((await ERC721.balanceOf(accounts[3])).toNumber()).to.equal(1);
-        expect((await ERC721.balanceOf(accounts[4])).toNumber()).to.equal(1);
-
-        expect((await Dai.balanceOf(accounts[9])).toNumber()).to.equal(100);
-        expect((await ERC20.balanceOf(accounts[9])).toNumber()).to.equal(100);
-
-        const firstTicket = await ERC721.tokenOfOwnerByIndex(accounts[0], 0);
-        const data = await T721Controller.getTicketAffiliation(firstTicket);
+        await expect(T721Controller.mint(id, b32, [], addr, bs)).to.eventually.be.rejectedWith('T721C::mint | missing uints[0] (currency number)');
 
     },
 };

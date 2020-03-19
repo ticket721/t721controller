@@ -6,22 +6,24 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "./T721ControllerDomain_v0.sol";
 import "./BytesUtil_v0.sol";
 
-// @notice the T721Controller handles all the ticket categories and minting
+// @notice the T721Controller handles all the ticket minting and attachments
 contract T721Controller_v0 is T721ControllerDomain_v0 {
 
     using SafeMath for uint256;
 
-    event NewGroup(bytes32 indexed id, address indexed owner, string controllers);
-    event GroupAdminAdded(bytes32 indexed id, address indexed admin);
-    event GroupAdminRemoved(bytes32 indexed id, address indexed admin);
-    event NewCategory(bytes32 indexed group_id, bytes32 indexed category_name, uint256 indexed idx);
-    event EditCategory(bytes32 indexed group_id, bytes32 indexed category_name, uint256 indexed idx);
     event Mint(
-        bytes32 indexed group_id,
-        bytes32 indexed category_name,
+        bytes32 indexed group,
+        bytes32 indexed category,
         address indexed owner,
         uint256 ticket_id,
         address buyer
+    );
+
+    event Attach(
+        bytes32 indexed group,
+        bytes32 indexed attachment,
+        uint256 indexed ticket_id,
+        uint256 amount
     );
 
     struct Currency {
@@ -32,36 +34,11 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
 
     struct Affiliation {
         bool active;
-        bytes32 group_id;
-        uint256 category_idx;
+        bytes32 group;
+        bytes32 category;
     }
 
-    struct Category {
-        uint256 amount;
-        uint256 sale_start;
-        uint256 sale_end;
-        uint256 resale_start;
-        uint256 resale_end;
-
-        address authorization;
-        address attachment;
-
-        bytes32 name;
-        bytes32 hierarchy;
-
-        uint256 sold;
-        address[] currencies;
-        mapping(address => uint256) prices;
-    }
-
-    struct Group {
-        string controllers;
-        address owner;
-        mapping (address => bool) admins;
-        Category[] categories;
-        mapping (bytes32 => bool) category_names;
-        mapping (address => uint256) balances;
-    }
+    mapping (bytes32 => mapping (address => uint256)) balances;
 
     ITicketForge_v0                     public t721;
     uint256                             public scope_index;
@@ -69,10 +46,7 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
     address                             public fee_collector;
     mapping (address => uint)           public group_nonce;
     mapping (uint256 => Affiliation)    public tickets;
-    mapping (bytes32 => Group)          public groups;
-    mapping (address => Currency)       public whitelist;
-    mapping (uint256 => bool)           public authorization_code_registry;
-    bytes32 public current_id = 0x0000000000000000000000000000005437323120436f6e74726f6c6c65722031; // T721 Controller 1
+    mapping (address => mapping (uint256 => bool))           public authorization_code_registry;
 
     constructor(address _t721, uint256 _chain_id)
     T721ControllerDomain_v0("T721 Controller", "0", _chain_id)
@@ -82,863 +56,521 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
         fee_collector = msg.sender;
     }
 
-    //
-    // @notice Modifier to prevent non-owner message senders
-    //
+    /*
+     *  @notice Modifier to prevent non-owner message senders
+     */
     modifier ownerOnly() {
         require(msg.sender == owner, "T721C::ownerOnly | unauthorized account");
         _;
     }
 
-    //
-    // @notice Modifier to prevent non-group-owner and non-group-admin message senders
-    //
-    // @param group_id ID of the group
-    //
-    modifier groupOwnerOnly(bytes32 group_id) {
-        require(msg.sender == groups[group_id].owner, "T721C::groupOwnerOnly | unauthorized tx sender");
-        _;
-    }
-
-    //
-    // @notice Modifier to prevent non-group-owner and non-group-admin message senders
-    //
-    // @param group_id ID of the group
-    //
-    modifier groupOwnerOrAdminOnly(bytes32 group_id) {
-        require(isAdminOrOwner(group_id, msg.sender) == true,
-            "T721C::groupOwnerOrAdminOnly | unauthorized tx sender");
-        _;
-    }
-
-    //
-    // @notice Set scope index of the tickets to create
-    //
-    // @param _scope_index Scope index to use
-    //
+    /*
+     *  @notice Set scope index of the tickets to create
+     *
+     *  @param _scope_index Scope index to use
+     */
     function setScopeIndex(uint256 _scope_index) external ownerOnly {
         scope_index = _scope_index;
     }
 
-    //
-    // @notice Set the address receiving all collected fees
-    //
-    // @param fee_collector_address Address receiving all cllected fees
-    //
+    /*
+     *  @notice Set the address receiving all collected fees
+     *
+     *  @param fee_collector_address Address receiving all cllected fees
+     */
     function setFeeCollector(address fee_collector_address) public ownerOnly {
         fee_collector = fee_collector_address;
     }
 
-    //
-    // @notice Add an ERC20 address to the payment whitelist and sets the fix and variable fee values
-    //
-    // @param erc20_address Address to whitelist for ERC20 payments
-    //
-    // @param fix_fee Fix amount to collect on every payment made with this currency
-    //
-    // @param var_fee Percent to collect on every payment made with this currency. Max is 1000 (100%).
-    //
-    function whitelistCurrency(address _address, uint256 fix_fee, uint256 var_fee) public ownerOnly {
-        whitelist[_address] = Currency({
-            active: true,
-            fix: fix_fee,
-            variable: var_fee
-            });
+    /**
+     * @notice Retrieve the current balance for a group
+     *
+     * @param group ID of the group
+     *
+     * @param currency Currency balance to inspect
+     */
+    function balanceOf(bytes32 group, address currency) public view returns (uint256) {
+        return balances[group][currency];
     }
 
-    //
-    // @notice Remove an ERC20 address from the payment whitelist
-    //
-    // @param erc20_address Address to remove from the payment whitelist
-    //
-    function removeCurrency(address _address) public ownerOnly {
-        require(whitelist[_address].active == true, "T721C::removeCurrency | useless transaction");
-        whitelist[_address].active = false;
-    }
-
-    //
-    // @notice Retrieve the current balance for a group
-    //
-    // @param group ID of the group
-    //
-    // @param currency Currency balance to inspect
-    //
-    function balanceOf(bytes32 group_id, address currency) public view returns (uint256) {
-        return groups[group_id].balances[currency];
-    }
-
-    //
-    // @notice Retrieve the fee to apply for a specific ERC20 currency and amount
-    //
-    // @param erc20_address Currency to use for fee computation
-    //
-    // @param amount Total amount to tax
-    //
-    function getFee(address _address, uint256 amount) public view returns (uint256) {
-        require(amount >= whitelist[_address].fix,
-            "T721C::getFee | paid amount is under fixed fee");
-
-        if (whitelist[_address].variable != 0) {
-            return amount
-            .mul(whitelist[_address].variable)
-            .div(1000)
-            .add(whitelist[_address].fix);
-        }
-        return whitelist[_address].fix;
-    }
-
-    //
-    // @notice Check if address is group admin
-    //
-    // @param group_id ID of the group
-    //
-    // @param admin Address to verify
-    //
-    function isAdmin(bytes32 group_id, address admin) public view returns (bool) {
-        return groups[group_id].admins[admin];
-    }
-
-    //
-    // @notice Utility to check if given address if owner or admin
-    //
-    // @param group_id ID of the group
-    //
-    // @param admin_or_owner Address to check
-    //
-    function isAdminOrOwner(bytes32 group_id, address admin_or_owner) public view returns (bool) {
-        return groups[group_id].owner == admin_or_owner || isAdmin(group_id, admin_or_owner);
-    }
-
-    //
-    // @notice Utility to get next group ID
-    //
-    function getNextGroupId(address owner) public view returns (bytes32) {
-
+    /**
+     * @notice Get identifier for the combo controller + id
+     *
+     * @param _owner The address of the controller
+     *
+     * @param id The id of the event
+     */
+    function getGroupID(address _owner, string memory id) public pure returns (bytes32) {
         return keccak256(abi.encode(
-                current_id,
-                owner,
-                group_nonce[owner]
+                _owner,
+                id
             ));
-
     }
 
-    //
-    // @notice Create a group that can contain several categories
-    //
-    // @param controllers string containing all used controllers
-    //
-    function createGroup(string calldata controllers) external {
-        bytes32 selected_id = getNextGroupId(msg.sender);
+    /**
+     * @notice Withdraw event funds
+     *
+     * @param event_controller The address controlling the event
+     *
+     * @param id The event identifier
+     *
+     * @param currency The currency to withdraw
+     *
+     * @param amount The amount to withdraw
+     *
+     * @param target The recipient of the withdraw
+     *
+     * @param code The authorization code
+     *
+     * @param signature The signature to use to withdraw
+     */
+    function withdraw(
+        address event_controller,
+        string calldata id,
+        address currency,
+        uint256 amount,
+        address target,
+        uint256 code,
+        bytes calldata signature
+    ) external {
 
-        Group storage grp = groups[selected_id];
-        grp.controllers = controllers;
-        grp.owner = msg.sender;
+        bytes32 group = getGroupID(event_controller, id);
 
-        current_id = selected_id;
+        bytes32 hash = keccak256(
+            abi.encode(
+                "withdraw",
+                group,
+                currency,
+                amount,
+                target,
+                code
+            )
+        );
 
-        group_nonce[msg.sender] += 1;
-
-        emit NewGroup(selected_id, msg.sender, controllers);
-
-    }
-
-    //
-    // @notice Add admin to group
-    //
-    // @param group_id ID of the group
-    //
-    // @param admin Address to verify
-    //
-    function addAdmin(bytes32 group_id, address admin) external groupOwnerOnly(group_id) {
-        require(groups[group_id].admins[admin] == false, "T721C::addAdmin | address is already admin");
-        groups[group_id].admins[admin] = true;
-        emit GroupAdminAdded(group_id, admin);
-    }
-
-    //
-    // @notice Add admin from group
-    //
-    // @param group_id ID of the group
-    //
-    // @param admin Address to verify
-    //
-    function removeAdmin(bytes32 group_id, address admin) external groupOwnerOnly(group_id) {
-        require(groups[group_id].admins[admin] == true, "T721C::removeAdmin | address is not already admin");
-        groups[group_id].admins[admin] = false;
-        emit GroupAdminRemoved(group_id, admin);
-    }
-
-    //
-    // @notice Withdraw group funds
-    //
-    // @param group_id ID of the group
-    //
-    // @param currency Currency to withdraw
-    //
-    // @param amount Amount to withdraw
-    //
-    // @param mode 1 for ERC20, 2 for ERC2280. Sets withdraw method
-    //
-    // @param target Withdraw toward this address
-    //
-    function withdraw(bytes32 group_id, address currency, uint256 amount, address target)
-    external groupOwnerOrAdminOnly(group_id) {
-        require(balanceOf(group_id, currency) >= amount, "T721C::withdraw | balance too low");
+        require(verify(Authorization(event_controller, target, hash), signature) == event_controller,
+            "T721C::withdraw | invalid signature");
+        require(balances[group][currency] >= amount, "T721C::withdraw | balance too low");
+        consumeCode(event_controller, code);
 
         IERC20(currency).transfer(target, amount);
-    }
 
-    //
-    // @notice Checks that timestamps are valid
-    //
-    function checkTimestamps(
-        uint256 sale_start,
-        uint256 sale_end,
-        uint256 resale_start,
-        uint256 resale_end
-    ) internal view {
-
-        // Check #1 Sale Start should not be in past
-        require(sale_start > block.timestamp,
-            "T721C::checkTimestamps | sale start is in the past");
-
-        // Check #2 Sale End should be after Sale Start
-        require(sale_end > sale_start,
-            "T721C::checkTimestamps | sale end is not after sale start");
-
-        // Check #3 Sale Start should not be in past
-        require(resale_start == 0 || resale_start > block.timestamp,
-            "T721C::checkTimestamps | resale start is in the past");
-
-        // Check #4 Sale End should be after Sale Start
-        require(resale_end == 0 || resale_end > resale_start,
-            "T721C::checkTimestamps | resale end is not after resale start");
+        balances[group][currency] = balances[group][currency].sub(amount);
 
     }
 
-    function checkCategoryInfos(
-        uint256 nums_idx,
-        uint256 addr_idx,
-        uint256 byte_data_idx,
-        uint256[] memory nums,
-        address[] memory addr,
-        bytes32[] memory byte_data
-    ) internal view {
-
-        // Checks 1 to 4 in checkTimestamps
-        checkTimestamps(nums[nums_idx + 1], nums[nums_idx + 2], nums[nums_idx + 3], nums[nums_idx + 4]);
-
-        // Check #5 Number of Uint256 argument is valid
-        require(nums.length - nums_idx >= 6 + nums[nums_idx + 5],
-            "T721C::checkCategoryInfos | invalid nums argument count");
-
-        // Check #6 Number of Address arguments is valid
-        require(addr.length - addr_idx >= 2 + nums[nums_idx + 5],
-            "T721C::checkCategoryInfos | invalid addr argument count");
-
-        // Check #7 Number of Byte Data arguments is valid
-        require(byte_data.length - byte_data_idx >= 2,
-            "T721C::checkCategoryInfos | invalid byte_data argument count");
-
-    }
-
-    // @notice This method register multiple categories inside a group. Each category is define by its timestamps
-    //         (when the sale starts and ends, when the resale starts and ends), the amount of ticket to sell, and
-    //         a set of currencies and prices. The nums, addr and byte_data arguments work like stacks. They contain
-    //         all the information listed above.
-    //
-    // @dev nums Array containing the uint256 values to configure the categories. For each category, we have 6+
-    //           values used to configure it: `amount`, `sale_start`, `sale_end`, `resale_start`, `resale_end`,
-    //           `prices_count`, and `prices_count` times `price`. Below is an example of nums argument when adding
-    //           two categories.
-    //
-    //           ```
-    //           | amount           |\
-    //           | sale_start       | \
-    //           | sale_end         |  \
-    //           | resale_start     |   \ Arguments for 1st category
-    //           | resale_end       |   /
-    //           | prices_count = 2 |  /
-    //           | price 1          | /
-    //           |_price 2__________|/
-    //           | amount           |\
-    //           | sale_start       | \
-    //           | sale_end         |  \
-    //           | resale_start     |   \
-    //           | resale_end       |    > Arguments for 2nd category
-    //           | prices_count = 3 |   /
-    //           | price 1          |  /
-    //           | price 2          | /
-    //           | price 3          |/
-    //           ```
-    //
-    //
-    // @dev addr Array containing the address values to configure the categories. For each category we have 1+
-    //           values used to configure it: `authorization` and `prices_count` times `currency`. Below is an
-    //           example of addr argument when adding two categories (with the same `prices_count` as above)
-    //
-    //           ```
-    //           | authorization |\
-    //           | attachment    | \
-    //           | currency 1    | / Arguments for 1st category (with prices_count = 2)
-    //           |_currency 2____|/
-    //           | authorization |\
-    //           | attachment    | \
-    //           | currency 1    |  > Arguments for 2nd category (with prices_count = 3)
-    //           | currency 2    | /
-    //           | currency 3    |/
-    //           ```
-    //
-    // @dev byte_data Array containing the bytes32 values to configure categories. For each category we have 2
-    //                values used to configure it: `name` and `hierarchy`
-    //
-    function registerCategories(
-        bytes32 group_id,
-        uint256[] memory nums,
-        address[] memory addr,
-        bytes32[] memory byte_data
-    ) groupOwnerOrAdminOnly(group_id) public {
-
-        uint addr_idx = 0;
-        uint nums_idx = 0;
-        uint byte_data_idx = 0;
-
-        while (addr_idx < addr.length || nums_idx < nums.length || byte_data_idx < byte_data.length) {
-
-            require(groups[group_id].category_names[byte_data[byte_data_idx]] == false,
-                "T721C::registerCategories | category name already in use in group");
-            checkCategoryInfos(nums_idx, addr_idx, byte_data_idx, nums, addr, byte_data);
-
-            uint256 current_idx = groups[group_id].categories.push(
-                Category({
-                amount: nums[nums_idx],
-                sale_start: nums[nums_idx + 1],
-                sale_end: nums[nums_idx + 2],
-                resale_start: nums[nums_idx + 3],
-                resale_end: nums[nums_idx + 4],
-
-                authorization: addr[addr_idx],
-                attachment: addr[addr_idx + 1],
-
-                name: byte_data[byte_data_idx],
-                hierarchy: byte_data[byte_data_idx + 1],
-
-                sold: 0,
-                currencies: new address[](nums[nums_idx + 5])
-                })
-            );
-
-            Category storage cat = groups[group_id].categories[current_idx - 1];
-            uint256 prices_count = nums[nums_idx + 5];
-
-            for (uint price_idx = 0; price_idx < prices_count; ++price_idx) {
-                require(whitelist[addr[addr_idx + 2 + price_idx]].active == true,
-                    "T721C::registerCategories | unauthorized currency added");
-                require(nums[nums_idx + 6 + price_idx] != 0,
-                    "T721C::registerCategories | invalid price 0");
-                require(cat.prices[addr[addr_idx + 2 + price_idx]] == 0,
-                    "T721C::registerCategories | duplicate currency");
-                cat.currencies[price_idx] = addr[addr_idx + 2 + price_idx];
-                cat.prices[addr[addr_idx + 2 + price_idx]] = nums[nums_idx + 6 + price_idx];
-            }
-
-            emit NewCategory(group_id, byte_data[byte_data_idx], current_idx - 1);
-            groups[group_id].category_names[byte_data[byte_data_idx]] = true;
-
-            addr_idx += 2 + prices_count;
-            byte_data_idx += 2;
-            nums_idx += 6 + prices_count;
-
-        }
-
-    }
-
-    function getCategoryPrice(bytes32 group_id, uint256 idx, address currency) public view returns (uint256 price) {
-        require(groups[group_id].categories.length > idx, "T721C::getCategoryPrice | index out of range");
-
-        return groups[group_id].categories[idx].prices[currency];
-    }
-
+    /**
+     * @notice Utility to recover group and category for a ticket id
+     *
+     * @param ticket_id The unique ticket id
+     */
     function getTicketAffiliation(
         uint256 ticket_id
-    ) external view returns (bool active, bytes32 group_id, uint256 category_idx) {
-        return (tickets[ticket_id].active, tickets[ticket_id].group_id, tickets[ticket_id].category_idx);
+    ) external view returns (bool active, bytes32 group, bytes32 category) {
+        return (tickets[ticket_id].active, tickets[ticket_id].group, tickets[ticket_id].category);
     }
 
-    function getCategoryAttachmentAuthorizationAddress(
-        bytes32 group_id,
-        uint256 category_idx
-    ) external view returns (address attachment) {
-        return groups[group_id].categories[category_idx].attachment;
+    /**
+     * @notice Helper used to verify if a unique consummable ID is available
+     *
+     * @param owner The ticket issuer address
+     *
+     * @param code The code to consume
+     */
+    function consumeCode(address owner, uint256 code) internal {
+        require(authorization_code_registry[owner][code] == false, "T721C::consumeCode | code already used");
+
+        authorization_code_registry[owner][code] = true;
     }
 
-    function getCategory(
-        bytes32 group_id,
-        uint256 idx
-    ) public view returns (
-        uint256 amount,
-        uint256 sale_start,
-        uint256 sale_end,
-        uint256 resale_start,
-        uint256 resale_end,
-
-        address authorization,
-        address attachment,
-
-        bytes32 name,
-        bytes32 hierarchy,
-
-        address[] memory currencies,
-
-        uint256 sold) {
-        require(groups[group_id].categories.length > idx, "T721C::getCategory | index out of range");
-
-        Category storage cat = groups[group_id].categories[idx];
-
-        return (
-        cat.amount,
-        cat.sale_start,
-        cat.sale_end,
-        cat.resale_start,
-        cat.resale_end,
-        cat.authorization,
-        cat.attachment,
-        cat.name,
-        cat.hierarchy,
-        cat.currencies,
-        cat.sold
-        );
+    /**
+     * @notice Helper used to verify if a unique consummable ID is available
+     *
+     * @param owner The ticket issuer address
+     *
+     * @param code The code to verify
+     */
+    function isCodeConsummable(address owner, uint256 code) public view returns (bool) {
+        return !authorization_code_registry[owner][code];
     }
 
-    function editCategory(
-        bytes32 group_id,
-        uint256 idx,
-        uint256[] calldata nums,
-        address authorization,
-        address attachment,
-        bytes32 hierarchy,
-        uint256[] calldata prices,
-        address[] calldata currencies
-    ) external groupOwnerOrAdminOnly(group_id) {
-
-        checkTimestamps(nums[1], nums[2], nums[3], nums[4]);
-
-        Category storage cat = groups[group_id].categories[idx];
-
-        require(cat.sold <= nums[0],
-            "T721C::editCategory | cannot change ticket amount under number of sold tickets");
-        require(prices.length == currencies.length,
-            "T721C::editCategory | invalid prices and currencies argument");
-
-        // Ifs cost less than writes. It looks ugly, but it is cheaper
-
-        if (cat.amount != nums[0]) {
-            cat.amount = nums[0];
-        }
-
-        if (cat.sale_start != nums[1]) {
-            cat.sale_start = nums[1];
-        }
-
-        if (cat.sale_end != nums[2]) {
-            cat.sale_end = nums[2];
-        }
-
-        if (cat.resale_start != nums[3]) {
-            cat.resale_start = nums[3];
-        }
-
-        if (cat.resale_end != nums[4]) {
-            cat.resale_end = nums[4];
-        }
-
-        if (cat.authorization != authorization) {
-            cat.authorization = authorization;
-        }
-
-        if (cat.attachment != attachment) {
-            cat.attachment = attachment;
-        }
-
-        if (cat.hierarchy != hierarchy) {
-            cat.hierarchy = hierarchy;
-        }
-
-        for (uint price_idx = 0; price_idx < prices.length; ++price_idx) {
-            require(whitelist[currencies[price_idx]].active == true,
-                "T721C::editCategory | unauthorized currency");
-            if (cat.prices[currencies[price_idx]] == 0) {
-                cat.currencies.push(currencies[price_idx]);
-            }
-            cat.prices[currencies[price_idx]] = prices[price_idx];
-        }
-
-        emit EditCategory(group_id, cat.name, idx);
-
-    }
-
-    function isAuthorizationCodeAvailable(uint256 code) public view returns (bool) {
-        return !authorization_code_registry[code];
-    }
-
-    // @notice Internal ERC20 payment verifier
-    function verifyMintPayment(
-        Category storage cat,
-        uint256[] memory nums,
-        address[] memory addr,
-        uint256 nums_idx,
-        uint256 addr_idx
-    ) internal view returns (uint256) {
-
-        //        ___ nums_idx
-        //       /
-        // [..., `payment_mode`, `amount`, ...]
-        require(nums.length - nums_idx >= 1,
-            "T721C::verifyMintPayment | invalid number of nums arguments");
-
-        //        ___ addr_idx
-        //       /
-        // [..., `currency`, ...]
-        require(addr.length - addr_idx >= 1,
-            "T721C::verifyMintPayment | invalid number of addr arguments");
-
-        address currency = addr[addr_idx];
-        uint256 amount = nums[nums_idx];
-
-        require(whitelist[currency].active == true,
-            "T721C::verifyMintPayment | unauthorized erc20 currency");
-
-        require(cat.prices[currency] != 0,
-            "T721C::verifyMintPayment | invalid currency");
-
-        require(IERC20(currency).allowance(msg.sender, address(this)) >= amount,
-            "T721C::verifyMintPayment | erc20 allowance too low");
-
-        getFee(currency, amount);
-
-        return ((amount * 100) / cat.prices[currency]);
-
-    }
-
-    // @notice Internal ERC20 payment processor
-    function processMintPayment(
-        bytes32 group_id,
-        Category storage cat,
-        uint256[] memory nums,
-        address[] memory addr,
-        uint256 nums_idx,
-        uint256 addr_idx
-    ) internal returns (uint256) {
-
-        //        ___ nums_idx
-        //       /
-        // [..., `payment_mode`, `amount`, ...]
-        require(nums.length - nums_idx >= 1,
-            "T721C::processMintPayment | invalid number of nums arguments");
-
-        //        ___ addr_idx
-        //       /
-        // [..., `currency`, ...]
-        require(addr.length - addr_idx >= 1,
-            "T721C::processMintPayment | invalid number of addr arguments");
-
-        Group storage grp = groups[group_id];
-        address currency = addr[addr_idx];
-        uint256 amount = nums[nums_idx];
-
-        require(whitelist[currency].active == true,
-            "T721C::processMintPayment | unauthorized erc20 currency");
-
-        require(cat.prices[currency] != 0,
-            "T721C::processMintPayment | invalid currency");
+    function executePayement(bytes32 group, uint256 amount, uint256 fee, address currency) internal {
 
         IERC20(currency).transferFrom(msg.sender, address(this), amount);
-        uint256 fee = getFee(currency, amount);
-        IERC20(currency).transfer(fee_collector, fee);
+        IERC20(currency).transferFrom(msg.sender, fee_collector, fee);
 
-        grp.balances[currency] = grp.balances[currency]
-        .add(amount)
-        .sub(fee);
-
-        return ((amount * 100) / cat.prices[currency]);
+        balances[group][currency] = balances[group][currency].add(amount);
 
     }
 
-    // @notice This method verifies arguments for the mint method. It takes all the same arguments, identically. If
-    //         there are not reverts generated => arguments are valid.
-    //
-    // @dev group_id ID of the group containing the category to purchase.
-    //
-    // @dev category_idx Index of the category inside the group.
-    //
-    // @dev nums Array containing the uint256 values to configure the purchase. Its size is dynamic and depends on
-    //           several variable: amount of currencies used, types of currencies, amount of authorization codes.
-    //           Let's say we want to pay with two currencies called $ONE and $TWO for 3 tickets. $ONE is an ERC20
-    //           currency while $TWO is an ERC2280 currency. The category requires an authorization code and
-    //           signature. We will use this example for all arguments.
-    //
-    //           ```
-    //           | currencies = 2       |\ General config: number of currencies + number of tickets to create
-    //           |_owners = 3___________|/
-    //           |_amount_______________| > Price paid with $ONE currency
-    //           |_amount_______________| > Price paid with $TWO currency
-    //           | authorization code 1 |\
-    //           | authorization code 2 | > Authorization codes for the 3 tickets
-    //           | authorization code 3 |/
-    //           ```
-    //
-    // @dev addr Array containing the address values to configure the purchase. Its size is dynamic and depends on
-    //           several variable: amount of currencies used, types of currencies, amount of authorization codes.
-    //           Let's say we want to pay with two currencies called $ONE and $TWO for 3 tickets. $ONE is an ERC20
-    //           currency while $TWO is an ERC2280 currency. The category requires an authorization code and
-    //           signature. We will use this example for all arguments.
-    //
-    //           ```
-    //           |_address of $ONE______| > Address of $ONE currency
-    //           |_address of $TWO______| > Address of $TWO currency
-    //           | owner 1              |\
-    //           | owner 2              | > Addresses of ticket owners
-    //           | owner 3              |/
-    //           ```
-    //
-    // @dev signature Bytes argument containing all the required signatures. Its size is dynamic and depends on
-    //                several variable: amount of currencies used, types of currencies, amount of authorization codes.
-    //                Let's say we want to pay with two currencies called $ONE and $TWO for 3 tickets. $ONE is an ERC20
-    //                currency while $TWO is an ERC2280 currency. The category requires an authorization code and
-    //                signature. We will use this example for all arguments. Each chunk here is a 65 bytes long
-    //                signature.
-    //
-    //           ```
-    //           | authorization signature 1  |\
-    //           | authorization signature 2  | > Authorization signatures for all tickets
-    //           | authorization signature 3  |/
-    //           ```
-    //
-    function verifyMint(
-        bytes32 group_id,
-        uint256 category_idx,
-        uint256[] memory nums,
+    /**
+     * @notice This is the core pre-purchase creation method. It binds attachments in exchange of payment.
+     *
+     * @param id This is the identifier of the event. When combining event controller address and this is, we get a
+     *           unique identifier used to regroup the tickets.
+     *
+     * @param b32 This parameter contains all the bytes32 arguments required to pay and mint the tickets
+     *
+     *                                +> There are no bytes32 arguments for the payment logics
+     *        |                       |
+     *
+     *                                +> These are the arguments used for the attachment logics
+     *        | attachment_1_category | < An attachment name is specified for each attachment
+     *        | attachment_2_category |
+     *        | attachment_3_category |
+     *        | attachment_4_category |
+     *        | attachment_5_category |
+     *
+     * @param uints This parameter contains all the uin256 arguments required to pay and attach the attachments
+     *
+     *                            +> These are the arguments used for the payment logics
+     *        | currency_count    | < This is the number of currency to use for the payment (in our example: 2)
+     *        | currency_1_price  | < For each currency, the price paid to the organizer
+     *        | currency_1_fee    | < For each currency, the extra fee for T721
+     *        | currency_2_price  |
+     *        | currency_2_fee    |
+     *
+     *                            +> These are the arguments used for the minting process
+     *        | attachment_count  | < This is the number of tickets to mint
+     *        | amount_1          | < The amount of attachment to add for this type.
+     *        | code_1            | < The authorization code
+     *        | ticket_id_1       | < The ID of the ticket on which to bind the attachments
+     *        | amount_2          |
+     *        | code_2            |
+     *        | ticket_id_2       |
+     *        | amount_3          |
+     *        | code_3            |
+     *        | ticket_id_3       |
+     *        | amount_4          |
+     *        | code_4            |
+     *        | ticket_id_4       |
+     *        | amount_5          |
+     *        | code_5            |
+     *        | ticket_id_5       |
+     *
+     * @param addr This parameter contains all the address arguments required to pay and attach the attachments
+     *
+     *                            +> These are the arguments used for the payment logics
+     *        | event_controller  | < The address of the controller
+     *        | currency_1        | < The address of each currency
+     *        | currency_2        |
+     *
+     *                            +> There are no address arguments for attachment process
+     *        |                   |
+     *
+     * @param bs This parameter contains bytes used to pay and attach the attachments. The notation argument[23]
+     *           means it's a 23 bytes segment.
+     *
+     *                            +> There are no bytes arguments for the payment process
+     *        |                   |
+     *
+     *                            +> These are the arguments used for the attachment process
+     *        | auth_sig_1[65]     | < For each attachment, an authorization signature made of unique parameters
+     *        | auth_sig_2[65]     |
+     *        | auth_sig_3[65]     |
+     *        | auth_sig_4[65]     |
+     *        | auth_sig_5[65]     |
+     *
+     */
+    function attach(
+        string memory id,
+        bytes32[] memory b32,
+        uint256[] memory uints,
         address[] memory addr,
-        bytes memory signature
-    ) public view {
-
-        require(nums.length >= 2, "T721C::verifyMint | invalid nums length");
-
-        uint256 nums_idx = 2;
-        uint256 addr_idx = 0;
-        uint256 sig_idx = 0;
-        uint256 currency_count = nums[0];
-        uint256 owner_count = nums[1];
-        uint256 score = 0;
-
-        require(owner_count > 0, "T721C::verifyMint | useless minting for 0 owners");
-
-        Category storage cat = groups[group_id].categories[category_idx];
-
-        require(cat.sold + owner_count <= cat.amount,
-            "T721C::verifyMint | no tickets left to sell for category");
-
-        for (uint256 idx = 0; idx < currency_count; ++idx) {
-
-            score += verifyMintPayment(cat, nums, addr, nums_idx, addr_idx);
-            nums_idx += 1;
-            addr_idx += 1;
-
-        }
-
-        require(score >= owner_count * 100, "T721C::verifyMint | payment score too low");
-
-        if (cat.authorization != address(0)) { // Authorization => ON
-
-            require(signature.length - sig_idx >= 65 * owner_count,
-                "T721C::verifyMint | invalid authorization signature count");
-            require(nums.length - nums_idx >= owner_count,
-                "T721C::verifyMint | invalid authorization code count");
-
-            for (uint256 code_idx = 0; code_idx < owner_count; ++code_idx) {
-                for (uint256 check_idx = code_idx + 1; check_idx < owner_count; ++check_idx) {
-                    require(nums[nums_idx + code_idx] != nums[nums_idx + check_idx],
-                        "T721C::verifyMint | authorization code duplicate");
-                }
-            }
-
-            for (uint256 idx = 0; idx < owner_count; ++idx) {
-
-                require(isAuthorizationCodeAvailable(nums[nums_idx + idx]) == true,
-                    "T721C::verifyMint | authorization code already used");
-
-                MintingAuthorization memory ma = MintingAuthorization(
-                    nums[nums_idx + idx],
-                    cat.authorization,
-                    addr[addr_idx + idx],
-                    group_id,
-                    cat.name
-                );
-
-                bytes memory owner_signature = BytesUtil_v0.slice(
-                    signature,
-                    sig_idx + idx * 65,
-                    65
-                );
-
-                require(verify(ma, owner_signature) == cat.authorization,
-                    "T721C::verifyMint | invalid authorization signature");
-
-            }
-
-        } else {
-
-            require(signature.length - sig_idx == 0,
-                "T721C::verifyMint | useless authorization signature provided");
-            require(nums.length - nums_idx == 0,
-                "T721C::verifyMint | useless authorization codes provided");
-
-        }
-
-    }
-
-    // @notice This method creates one or more tickets if payment is properly made and tickets are left for sale.
-    //         Payment can be made from multiple currencies if they all are accepted. Payer can only be `msg.sender`.
-    //
-    // @dev group_id ID of the group containing the category to purchase.
-    //
-    // @dev category_idx Index of the category inside the group.
-    //
-    // @dev nums Array containing the uint256 values to configure the purchase. Its size is dynamic and depends on
-    //           several variable: amount of currencies used, types of currencies, amount of authorization codes.
-    //           Let's say we want to pay with two currencies called $ONE and $TWO for 3 tickets. $ONE is an ERC20
-    //           currency while $TWO is an ERC2280 currency. The category requires an authorization code and
-    //           signature. We will use this example for all arguments.
-    //
-    //           ```
-    //           | currencies = 2       |\ General config: number of currencies + number of tickets to create
-    //           |_owners = 3___________|/
-    //           |_amount_______________| > Price paid with $ONE currency
-    //           |_amount_______________| > Price paid with $TWO currency
-    //           | authorization code 1 |\
-    //           | authorization code 2 | > Authorization codes for the 3 tickets
-    //           | authorization code 3 |/
-    //           ```
-    //
-    // @dev addr Array containing the address values to configure the purchase. Its size is dynamic and depends on
-    //           several variable: amount of currencies used, types of currencies, amount of authorization codes.
-    //           Let's say we want to pay with two currencies called $ONE and $TWO for 3 tickets. $ONE is an ERC20
-    //           currency while $TWO is an ERC2280 currency. The category requires an authorization code and
-    //           signature. We will use this example for all arguments.
-    //
-    //           ```
-    //           |_address of $ONE______| > Address of $ONE currency
-    //           |_address of $TWO______| > Address of $TWO currency
-    //           | owner 1              |\
-    //           | owner 2              | > Addresses of ticket owners
-    //           | owner 3              |/
-    //           ```
-    //
-    // @dev signature Bytes argument containing all the required signatures. Its size is dynamic and depends on
-    //                several variable: amount of currencies used, types of currencies, amount of authorization codes.
-    //                Let's say we want to pay with two currencies called $ONE and $TWO for 3 tickets. $ONE is an ERC20
-    //                currency while $TWO is an ERC2280 currency. The category requires an authorization code and
-    //                signature. We will use this example for all arguments. Each chunk here is a 65 bytes long
-    //                signature.
-    //
-    //           ```
-    //           | authorization signature 1  |\
-    //           | authorization signature 2  | > Authorization signatures for all tickets
-    //           | authorization signature 3  |/
-    //           ```
-    //
-    function mint(
-        bytes32 group_id,
-        uint256 category_idx,
-        uint256[] memory nums,
-        address[] memory addr,
-        bytes memory signature
+        bytes memory bs
     ) public {
 
-        require(nums.length >= 2, "T721C::mint | invalid nums length");
+        uint256 uints_idx = 1;
+        uint256 addr_idx = 1;
+        bytes memory prices = "";
+        address event_controller;
 
-        uint256 owner_count = nums[1];
-        uint256 addr_idx = 0;
-        Category storage cat = groups[group_id].categories[category_idx];
-
+        // Payment Processing
         {
-            uint256 currency_count = nums[0];
-            uint256 nums_idx = 2;
-            uint256 sig_idx = 0;
-            uint256 score = 0;
+            require(uints.length > 0, "T721C::attach | missing uints[0] (currency number)");
+            require(addr.length > 0, "T721C::attach | missing addr[0] (event controller)");
 
-            require(owner_count > 0, "T721C::mint | useless minting for 0 owners");
+            uint256 currency_number = uints[0];
+            event_controller = addr[0];
+            bytes32 group = getGroupID(event_controller, id);
 
+            if (currency_number > 0) {
 
-            require(cat.sold + owner_count <= cat.amount,
-                "T721C::mint | no tickets left to sell for category");
+                // Now that we now the number of currencies used for payment, we can verify that the required amount
+                // of arguments in uints and addr are respected
+                require(uints.length >= (currency_number * 2) + 1, "T721C::attach | not enough space on uints (1)");
+                require(addr.length >= currency_number, "T721C::attach | not enough space on addr (1)");
 
-            for (uint256 idx = 0; idx < currency_count; ++idx) {
+                for (uint256 currency_idx = 0; currency_idx < currency_number; ++currency_idx) {
 
-                score += processMintPayment(group_id, cat, nums, addr, nums_idx, addr_idx);
-                nums_idx += 1;
-                addr_idx += 1;
+                    prices = BytesUtil_v0.concat(prices, abi.encode(uints[uints_idx + (currency_idx * 2)]));
+                    prices = BytesUtil_v0.concat(prices, abi.encode(uints[uints_idx + 1 + (currency_idx * 2)]));
+                    prices = BytesUtil_v0.concat(prices, abi.encode(addr[addr_idx + currency_idx]));
 
-            }
-
-            require(score >= owner_count * 100, "T721C::mint | payment score too low");
-
-            if (cat.authorization != address(0)) { // Authorization => ON
-
-                require(signature.length - sig_idx >= 65 * owner_count,
-                    "T721C::mint | invalid authorization signature count");
-                require(nums.length - nums_idx >= owner_count,
-                    "T721C::mint | invalid authorization code count");
-
-                for (uint256 idx = 0; idx < owner_count; ++idx) {
-
-                    require(isAuthorizationCodeAvailable(nums[nums_idx + idx]) == true,
-                        "T721C::mint | authorization code already used");
-
-                    MintingAuthorization memory ma = MintingAuthorization(
-                        nums[nums_idx + idx],
-                        cat.authorization,
-                        addr[addr_idx + idx],
-                        group_id,
-                        cat.name
+                    executePayement(
+                        group,
+                        uints[uints_idx + (currency_idx * 2)],
+                        uints[uints_idx + 1 + (currency_idx * 2)],
+                        addr[addr_idx + currency_idx]
                     );
-
-                    bytes memory owner_signature = BytesUtil_v0.slice(
-                        signature,
-                        sig_idx + idx * 65,
-                        65
-                    );
-
-                    require(verify(ma, owner_signature) == cat.authorization,
-                        "T721C::mint | invalid authorization signature");
-
-                    authorization_code_registry[nums[nums_idx + idx]] = true;
 
                 }
 
-            } else { // Authorization => OFF
-
-                require(signature.length - sig_idx == 0,
-                    "T721C::mint | useless authorization signature provided");
-                require(nums.length - nums_idx == 0,
-                    "T721C::mint | useless authorization codes provided");
+                uints_idx += currency_number * 2;
+                addr_idx += currency_number;
 
             }
-        }
 
-        for (uint256 idx = 0; idx < owner_count; ++idx) {
-
-            uint256 ticket_id = t721.mint(addr[addr_idx + idx], scope_index);
-            tickets[ticket_id] = Affiliation({
-                active: true,
-                group_id: group_id,
-                category_idx: category_idx
-                });
-            emit Mint(group_id, cat.name, addr[addr_idx + idx], ticket_id, msg.sender);
 
         }
 
-        cat.sold += owner_count;
+        // Attachment Event Emission
+        {
+            // Same as above, first we check the bare minimum arguments
+            require(uints.length - uints_idx > 0, "T721C::attach | missing attachmentCount on uints");
+
+            uint256 attachment_number = uints[uints_idx];
+            ++uints_idx;
+
+            require(attachment_number > 0, "T721C::attach | why would you attach 0 attachments ?");
+            require(b32.length == attachment_number, "T721C::attach | not enough space on b32");
+            require(uints.length - uints_idx == attachment_number * 3, "T721C::attach | not enough space on uints (2)");
+            require(bs.length / 65 == attachment_number && bs.length % 65 == 0,
+                "T721C::attachment | not enough space or invalid length on bs");
+
+            for (uint256 attachment_idx = 0; attachment_idx < attachment_number; ++attachment_idx) {
+
+                // We extract arguments for one attachment
+                uint256 amount = uints[uints_idx + (attachment_idx * 3)];
+
+                // Signature Verification Scope
+                {
+
+                    bytes memory signature = BytesUtil_v0.slice(bs, (attachment_idx * 65), 65);
+                    bytes memory encoded;
+
+                    {
+                        uint256 code = uints[uints_idx + 1 + (attachment_idx * 3)];
+                        bytes32 name = b32[attachment_idx];
+
+                        encoded = abi.encode(
+                            "attach",
+                            prices,
+                            name,
+                            amount,
+                            code
+                        );
+
+                        consumeCode(event_controller, code);
+                    }
+
+                    bytes32 hash = keccak256(encoded);
+
+                    address ticket_owner = t721.ownerOf(uints[uints_idx + 2 + (attachment_idx * 3)]);
+
+                    // Core verification, this is what controls the flow of minted tickets
+                    require(verify(Authorization(event_controller, ticket_owner, hash), signature) == event_controller,
+                        "T721C::attach | invalid signature");
+
+                }
+
+                // Attachment Emission
+                {
+
+                    bytes32 group = getGroupID(event_controller, id);
+                    bytes32 name = b32[attachment_idx];
+
+                    emit Attach(group, name, uints[uints_idx + 2 + (attachment_idx * 3)], amount);
+
+                }
+
+            }
+
+        }
+
+    }
+
+    /**
+     * @notice This is the core ticket creation method. With a proper signature from the event controller, the method
+     *         can release several tickets for a payment made from one or more currencies (or for free). All examples
+     *         below show a use case where we use 2 payment methods to mint 5 tickets.
+     *
+     * @param id This is the identifier of the event. When combining event controller address and this is, we get a
+     *           unique identifier used to regroup the tickets.
+     *
+     * @param b32 This parameter contains all the bytes32 arguments required to pay and mint the tickets
+     *
+     *                            +> There are no bytes32 arguments for the payment logics
+     *        |                   |
+     *
+     *                            +> These are the arguments used for the minting logics
+     *        | ticket_1_category | < A category is specified for each ticket
+     *        | ticket_2_category |
+     *        | ticket_3_category |
+     *        | ticket_4_category |
+     *        | ticket_5_category |
+     *
+     * @param uints This parameter contains all the uin256 arguments required to pay and mint the tickets
+     *
+     *                            +> These are the arguments used for the payment logics
+     *        | currency_count    | < This is the number of currency to use for the payment (in our example: 2)
+     *        | currency_1_price  | < For each currency, the price paid to the organizer
+     *        | currency_1_fee    | < For each currency, the extra fee for T721
+     *        | currency_2_price  |
+     *        | currency_2_fee    |
+     *
+     *                            +> These are the arguments used for the minting process
+     *        | ticket_count      | < This is the number of tickets to mint
+     *        | code_1            | < For each ticket, an authorization code is required. It is mixed with the
+     *        | code_2            |   signature to prevent replay attacks. It must be unique.
+     *        | code_3            |
+     *        | code_4            |
+     *        | code_5            |
+     *
+     * @param addr This parameter contains all the address arguments required to pay and mint the tickets
+     *
+     *                            +> These are the arguments used for the payment logics
+     *        | event_controller  | < The address of the controller
+     *        | currency_1        | < The address of each currency
+     *        | currency_2        |
+     *
+     *                            +> These are the arguments used for the minting process
+     *        | owner_1            | < For each ticket, its owner
+     *        | owner_2            |
+     *        | owner_3            |
+     *        | owner_4            |
+     *        | owner_5            |
+     *
+     * @param bs This parameter contains bytes used to pay and mint the tickets. The notation argument[23] means it's
+     *           a 23 bytes segment.
+     *
+     *                            +> There are no bytes arguments for the payment process
+     *        |                   |
+     *
+     *                            +> These are the arguments used for the minting process
+     *        | auth_sig_1[65]     | < For each ticket, an authorization signature made of unique parameters
+     *        | auth_sig_2[65]     |
+     *        | auth_sig_3[65]     |
+     *        | auth_sig_4[65]     |
+     *        | auth_sig_5[65]     |
+     *
+     */
+    function mint(
+        string memory id,
+        bytes32[] memory b32,
+        uint256[] memory uints,
+        address[] memory addr,
+        bytes memory bs
+    ) public {
+
+        uint256 uints_idx = 1;
+        uint256 addr_idx = 1;
+        bytes memory prices = "";
+        address event_controller;
+        bytes32 group;
+
+        // Payment Processing Scope
+        {
+
+            // We verify that the bare minimum arguments are here before accessing them
+            require(uints.length > 0, "T721C::mint | missing uints[0] (currency number)");
+            require(addr.length > 0, "T721C::mint | missing addr[0] (event controller)");
+
+            uint256 currency_number = uints[0];
+            event_controller = addr[0];
+            group = getGroupID(event_controller, id);
+
+            if (currency_number > 0) {
+
+                // Now that we now the number of currencies used for payment, we can verify that the required amount
+                // of arguments in uints and addr are respected
+                require(uints.length - 1 >= (currency_number * 2), "T721C::mint | not enough space on uints (1)");
+                require(addr.length - 1 >= currency_number, "T721C::mint | not enough space on addr (1)");
+
+                for (uint256 currency_idx = 0; currency_idx < currency_number; ++currency_idx) {
+
+                    prices = BytesUtil_v0.concat(prices, abi.encode(uints[uints_idx + (currency_idx * 2)]));
+                    prices = BytesUtil_v0.concat(prices, abi.encode(uints[uints_idx + 1 + (currency_idx * 2)]));
+                    prices = BytesUtil_v0.concat(prices, abi.encode(addr[addr_idx + currency_idx]));
+
+                    executePayement(
+                        group,
+                        uints[uints_idx + (currency_idx * 2)],
+                        uints[uints_idx + 1 + (currency_idx * 2)],
+                        addr[addr_idx + currency_idx]
+                    );
+
+                }
+
+                uints_idx += currency_number * 2;
+                addr_idx += currency_number;
+
+            }
+
+        }
+
+
+        // Ticket Minting Scope
+        {
+
+            // Same as above, first we check the bare minimum arguments
+            require(uints.length - uints_idx > 0, "T721C::mint | missing ticketCount on uints");
+
+            uint256 ticket_number = uints[uints_idx];
+            ++uints_idx;
+
+            // Being the last step, we can now verify exact amounts of arguments, and not a minimum required
+            require(ticket_number > 0, "T721C::mint | why would you mint 0 tickets ?");
+            require(b32.length == ticket_number, "T721C::mint | not enough space on b32");
+            require(bs.length / 65 == ticket_number && bs.length % 65 == 0,
+                "T721C::mint | not enough space or invalid length on bs");
+            require(addr.length - addr_idx == ticket_number, "T721C::mint | not enough space on addr (2)");
+            require(uints.length - uints_idx == ticket_number, "T721C::mint | not enough space on uints (2)");
+
+
+            for (uint256 ticket_idx = 0; ticket_idx < ticket_number; ++ticket_idx) {
+
+                // We extract arguments for one ticket
+                bytes memory signature = BytesUtil_v0.slice(bs, (ticket_idx * 65), 65);
+                uint256 code = uints[uints_idx + ticket_idx];
+                bytes32 category = b32[ticket_idx];
+                address ticket_owner = addr[addr_idx + ticket_idx];
+
+                // Signature Verification Scope
+                {
+
+                    bytes32 hash = keccak256(abi.encode(
+                            "mint",
+                            prices,
+                            group,
+                            category,
+                            code
+                        ));
+
+                    // Core verification, this is what controls the flow of minted tickets
+                    require(verify(Authorization(event_controller, ticket_owner, hash), signature) == event_controller,
+                        "T721C::mint | invalid signature");
+                    consumeCode(event_controller, code);
+
+                }
+
+                // Minting Scope
+                {
+                    // We call the TicketForge to issue a new ticket
+                    uint256 ticket_id = t721.mint(ticket_owner, scope_index);
+
+                    // We register group and category information for the new ticket
+                    tickets[ticket_id] = Affiliation({
+                        active: true,
+                        group: group,
+                        category: category
+                        });
+
+                    // We emit a Mint event that is caught by the infrastructure
+                    emit Mint(group, category, ticket_owner, ticket_id, msg.sender);
+                }
+            }
+
+        }
 
     }
 
