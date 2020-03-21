@@ -41,7 +41,7 @@ module.exports = {
         await Dai.approve(T721Controller.address, 1000);
         await ERC20.approve(T721Controller.address, 1000);
 
-        const [id, b32, uints, addr, bs] = await generateMintPayload(uuid, payments, tickets, eventControllerWallet, signer);
+        const [id, b32, uints, addr, bs] = await generateMintPayload(uuid, payments, tickets, eventControllerWallet, accounts[9], signer);
 
         expect((await ERC721.balanceOf(accounts[0])).toNumber()).to.equal(0);
         expect((await ERC721.balanceOf(accounts[1])).toNumber()).to.equal(0);

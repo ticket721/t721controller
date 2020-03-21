@@ -4,7 +4,7 @@ const { Wallet } = require('ethers');
 
 // Mint 5 tickets, with 2 currencies
 module.exports = {
-    attach_missing_controller_address: async function attach_missing_controller_address() {
+    attach_no_fees: async function attach_no_fees() {
 
         const { accounts, expect } = this;
 
@@ -19,12 +19,12 @@ module.exports = {
             {
                 currency: Dai.address,
                 amount: 900,
-                fee: 100,
+                fee: 0,
             },
             {
                 currency: ERC20.address,
                 amount: 900,
-                fee: 100,
+                fee: 0,
             },
         ];
 
@@ -60,11 +60,11 @@ module.exports = {
         const network_id = await web3.eth.net.getId();
         const signer = new Authorizer(network_id, T721Controller.address);
 
-        await Dai.mint(accounts[0], 1000);
-        await ERC20.mint(accounts[0], 1000);
+        await Dai.mint(accounts[0], 900);
+        await ERC20.mint(accounts[0], 900);
 
-        await Dai.approve(T721Controller.address, 1000);
-        await ERC20.approve(T721Controller.address, 1000);
+        await Dai.approve(T721Controller.address, 900);
+        await ERC20.approve(T721Controller.address, 900);
         {
             const [id, b32, uints, addr, bs] = await generateMintPayload(uuid, payments, tickets, eventControllerWallet, accounts[9], signer);
 
@@ -89,8 +89,8 @@ module.exports = {
         expect((await ERC721.balanceOf(accounts[3])).toNumber()).to.equal(1);
         expect((await ERC721.balanceOf(accounts[4])).toNumber()).to.equal(1);
 
-        expect((await Dai.balanceOf(accounts[9])).toNumber()).to.equal(100);
-        expect((await ERC20.balanceOf(accounts[9])).toNumber()).to.equal(100);
+        expect((await Dai.balanceOf(accounts[9])).toNumber()).to.equal(0);
+        expect((await ERC20.balanceOf(accounts[9])).toNumber()).to.equal(0);
 
         const ticket_id = await ERC721.tokenOfOwnerByIndex(accounts[0], 0);
 
@@ -119,7 +119,15 @@ module.exports = {
 
         const [id, b32, uints, addr, bs] = await generateAttachPayload(uuid, payments, attachments, eventControllerWallet, accounts[9], signer);
 
-        await expect(T721Controller.attach(id, b32, uints, [], bs)).to.eventually.be.rejectedWith('T721C::attach | missing addr[0] (event controller and fee_collector)');
+        const res = await T721Controller.attach(id, b32, uints, addr, bs);
+
+        for (let idx = 0; idx < res.logs.length; ++idx) {
+
+            expect(res.logs[idx].args.ticket_id.toString()).to.equal(ticket_id.toString());
+            expect(res.logs[idx].args.amount.toNumber()).to.equal(attachments[idx].amount);
+            expect(res.logs[idx].args.attachment).to.equal(strToB32(attachments[idx].attachment));
+
+        }
 
     },
 };

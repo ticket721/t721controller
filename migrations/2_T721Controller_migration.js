@@ -43,11 +43,6 @@ module.exports = async function(deployer, networkName, accounts) {
         const T721Controller_v0Instance = await T721Controller_v0.deployed();
 
         await ERC721Instance.createScope("t721_test", ZADDRESS, [], [T721Controller_v0Instance.address]);
-        const scope = await ERC721Instance.getScope("t721_test");
-        const scope_index = scope.scope_index.toNumber();
-
-        await T721Controller_v0Instance.setScopeIndex(scope_index);
-        await T721Controller_v0Instance.setFeeCollector(accounts[9]);
 
     }
 };
