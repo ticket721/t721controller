@@ -66,7 +66,7 @@ module.exports = {
         await Dai.approve(T721Controller.address, 1000);
         await ERC20.approve(T721Controller.address, 1000);
 
-        const [id, b32, uints, addr, bs] = await generateMintPayload(uuid, payments, tickets, eventControllerWallet, signer);
+        const [id, b32, uints, addr, bs] = await generateMintPayload(uuid, payments, tickets, eventControllerWallet, accounts[9], signer);
 
         expect((await ERC721.balanceOf(accounts[0])).toNumber()).to.equal(0);
         expect((await ERC721.balanceOf(accounts[1])).toNumber()).to.equal(0);
@@ -90,6 +90,10 @@ module.exports = {
 
         expect((await Dai.balanceOf(accounts[9])).toNumber()).to.equal(100);
         expect((await ERC20.balanceOf(accounts[9])).toNumber()).to.equal(100);
+
+        const wrong_uuid = 'c4758045-fe85-4935-8e2e-fab04966906d'.toLowerCase();
+        expect(await T721Controller.hasAuthorityUpon(eventControllerWallet.address, id, await ERC721.tokenOfOwnerByIndex(accounts[0], 0))).to.equal(true);
+        expect(await T721Controller.hasAuthorityUpon(eventControllerWallet.address, wrong_uuid, await ERC721.tokenOfOwnerByIndex(accounts[0], 0))).to.equal(false);
 
     },
 };

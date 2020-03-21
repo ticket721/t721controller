@@ -7,9 +7,6 @@ const expect = chai.expect;
 const { T721C_CONTRACT_NAME } = require('./constants');
 
 const { getGroupID } = require('../test_cases/getGroupID');
-const { setScopeIndex } = require('../test_cases/setScopeIndex');
-const { setFeeCollector } = require('../test_cases/setFeeCollector');
-const { setFeeCollector_invalid_sender } = require('../test_cases/setFeeCollector_invalid_sender');
 const { balanceOf } = require('../test_cases/balanceOf');
 const { getTicketAffiliation } = require('../test_cases/getTicketAffiliation');
 const { isCodeConsummable } = require('../test_cases/isCodeConsummable');
@@ -34,6 +31,7 @@ const { withdraw_balance_too_low } = require('../test_cases/withdraw_balance_too
 const { withdraw_duplicate_code } = require('../test_cases/withdraw_duplicate_code');
 
 const { attach } = require('../test_cases/attach');
+const { attach_no_fees } = require('../test_cases/attach_no_fees');
 const { attach_missing_controller_address } = require('../test_cases/attach_missing_controller_address');
 const { attach_missing_currency_number } = require('../test_cases/attach_missing_currency_number');
 const { attach_for_free } = require('../test_cases/attach_for_free');
@@ -81,9 +79,6 @@ contract('T721Controller_v0', (accounts) => {
     describe('Utils', function() {
 
         it('getGroupID', getGroupID);
-        it('setScopeIndex', setScopeIndex);
-        it('setFeeCollector', setFeeCollector);
-        it('setFeeCollector invalid sender', setFeeCollector_invalid_sender);
         it('balanceOf', balanceOf);
         it('getTicketAffiliation', getTicketAffiliation);
         it('isCodeConsummable', isCodeConsummable);
@@ -111,6 +106,7 @@ contract('T721Controller_v0', (accounts) => {
     describe('Attach', function() {
 
         it('should attach 5 beers and 2 fries', attach);
+        it('should with no fees', attach_no_fees);
         it('attach missing controller address', attach_missing_controller_address);
         it('attach missing currency number', attach_missing_currency_number);
         it('attach for free', attach_for_free);

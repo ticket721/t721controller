@@ -3,6 +3,7 @@ const { BigNumber } = require('ethers/utils');
 const ethers = require('ethers');
 const strhex = require('string-hex');
 const {EIP712Signer} = require('@ticket721/e712');
+const {SCOPE_INDEX} = require('./constants');
 
 const snapshot = () => {
     return new Promise((ok, ko) => {
@@ -92,7 +93,7 @@ const encodeAddress = (address) => {
     return web3.eth.abi.encodeParameters(['address'], [address]).slice(2);
 };
 
-const generateMintPayload = async (uuid, payments, tickets, eventController, signer) => {
+const generateMintPayload = async (uuid, payments, tickets, eventController, fee_collector, signer) => {
 
     const groupId = encodeAndHash(['address', 'string'], [eventController.address, uuid]);
 
@@ -105,6 +106,7 @@ const generateMintPayload = async (uuid, payments, tickets, eventController, sig
 
     uints.push(payments.length);
     addr.push(eventController.address);
+    addr.push(fee_collector);
 
     for (const payment of payments) {
         // Add Price
@@ -121,6 +123,7 @@ const generateMintPayload = async (uuid, payments, tickets, eventController, sig
     for (const ticket of tickets) {
 
         uints.push(ticket.code);
+        uints.push(SCOPE_INDEX);
         addr.push(ticket.owner);
         b32.push(strToB32(ticket.category));
 
@@ -173,7 +176,7 @@ const generateWithdrawPayload = async (event_controller_wallet, id, currency, am
 
 };
 
-const generateAttachPayload = async (uuid, payments, attachments, eventController, signer) => {
+const generateAttachPayload = async (uuid, payments, attachments, eventController, fee_collector, signer) => {
 
     const b32 = [];
     const addr = [];
@@ -184,6 +187,7 @@ const generateAttachPayload = async (uuid, payments, attachments, eventControlle
 
     uints.push(payments.length);
     addr.push(eventController.address);
+    addr.push(fee_collector);
 
     for (const payment of payments) {
         // Add Price

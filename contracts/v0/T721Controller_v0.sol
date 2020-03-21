@@ -41,9 +41,6 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
     mapping (bytes32 => mapping (address => uint256)) balances;
 
     ITicketForge_v0                     public t721;
-    uint256                             public scope_index;
-    address                             public owner;
-    address                             public fee_collector;
     mapping (address => uint)           public group_nonce;
     mapping (uint256 => Affiliation)    public tickets;
     mapping (address => mapping (uint256 => bool))           public authorization_code_registry;
@@ -52,34 +49,6 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
     T721ControllerDomain_v0("T721 Controller", "0", _chain_id)
     public {
         t721 = ITicketForge_v0(_t721);
-        owner = msg.sender;
-        fee_collector = msg.sender;
-    }
-
-    /*
-     *  @notice Modifier to prevent non-owner message senders
-     */
-    modifier ownerOnly() {
-        require(msg.sender == owner, "T721C::ownerOnly | unauthorized account");
-        _;
-    }
-
-    /*
-     *  @notice Set scope index of the tickets to create
-     *
-     *  @param _scope_index Scope index to use
-     */
-    function setScopeIndex(uint256 _scope_index) external ownerOnly {
-        scope_index = _scope_index;
-    }
-
-    /*
-     *  @notice Set the address receiving all collected fees
-     *
-     *  @param fee_collector_address Address receiving all cllected fees
-     */
-    function setFeeCollector(address fee_collector_address) public ownerOnly {
-        fee_collector = fee_collector_address;
     }
 
     /**
@@ -172,31 +141,39 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
     /**
      * @notice Helper used to verify if a unique consummable ID is available
      *
-     * @param owner The ticket issuer address
+     * @param _owner The ticket issuer address
      *
      * @param code The code to consume
      */
-    function consumeCode(address owner, uint256 code) internal {
-        require(authorization_code_registry[owner][code] == false, "T721C::consumeCode | code already used");
+    function consumeCode(address _owner, uint256 code) internal {
+        require(authorization_code_registry[_owner][code] == false, "T721C::consumeCode | code already used");
 
-        authorization_code_registry[owner][code] = true;
+        authorization_code_registry[_owner][code] = true;
     }
 
     /**
      * @notice Helper used to verify if a unique consummable ID is available
      *
-     * @param owner The ticket issuer address
+     * @param _owner The ticket issuer address
      *
      * @param code The code to verify
      */
-    function isCodeConsummable(address owner, uint256 code) public view returns (bool) {
-        return !authorization_code_registry[owner][code];
+    function isCodeConsummable(address _owner, uint256 code) public view returns (bool) {
+        return !authorization_code_registry[_owner][code];
     }
 
-    function executePayement(bytes32 group, uint256 amount, uint256 fee, address currency) internal {
+    function executePayement(
+        bytes32 group,
+        uint256 amount,
+        uint256 fee,
+        address currency,
+        address fee_collector
+    ) internal {
 
         IERC20(currency).transferFrom(msg.sender, address(this), amount);
-        IERC20(currency).transferFrom(msg.sender, fee_collector, fee);
+        if (fee > 0) {
+            IERC20(currency).transferFrom(msg.sender, fee_collector, fee);
+        }
 
         balances[group][currency] = balances[group][currency].add(amount);
 
@@ -280,25 +257,26 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
     ) public {
 
         uint256 uints_idx = 1;
-        uint256 addr_idx = 1;
+        uint256 addr_idx = 2;
         bytes memory prices = "";
         address event_controller;
 
         // Payment Processing
         {
-            require(uints.length > 0, "T721C::attach | missing uints[0] (currency number)");
-            require(addr.length > 0, "T721C::attach | missing addr[0] (event controller)");
+            require(uints.length >= 1, "T721C::attach | missing uints[0] (currency number)");
+            require(addr.length >= 2, "T721C::attach | missing addr[0] (event controller and fee_collector)");
 
             uint256 currency_number = uints[0];
             event_controller = addr[0];
+            address fee_collector = addr[1];
             bytes32 group = getGroupID(event_controller, id);
 
             if (currency_number > 0) {
 
                 // Now that we now the number of currencies used for payment, we can verify that the required amount
                 // of arguments in uints and addr are respected
-                require(uints.length >= (currency_number * 2) + 1, "T721C::attach | not enough space on uints (1)");
-                require(addr.length >= currency_number, "T721C::attach | not enough space on addr (1)");
+                require(uints.length - 1 >= (currency_number * 2), "T721C::attach | not enough space on uints (1)");
+                require(addr.length - 2 >= currency_number, "T721C::attach | not enough space on addr (1)");
 
                 for (uint256 currency_idx = 0; currency_idx < currency_number; ++currency_idx) {
 
@@ -310,7 +288,8 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
                         group,
                         uints[uints_idx + (currency_idx * 2)],
                         uints[uints_idx + 1 + (currency_idx * 2)],
-                        addr[addr_idx + currency_idx]
+                        addr[addr_idx + currency_idx],
+                        fee_collector
                     );
 
                 }
@@ -463,7 +442,7 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
     ) public {
 
         uint256 uints_idx = 1;
-        uint256 addr_idx = 1;
+        uint256 addr_idx = 2;
         bytes memory prices = "";
         address event_controller;
         bytes32 group;
@@ -472,11 +451,12 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
         {
 
             // We verify that the bare minimum arguments are here before accessing them
-            require(uints.length > 0, "T721C::mint | missing uints[0] (currency number)");
-            require(addr.length > 0, "T721C::mint | missing addr[0] (event controller)");
+            require(uints.length >= 1, "T721C::mint | missing uints[0] (currency number)");
+            require(addr.length >= 2, "T721C::mint | missing addr[0] (event controller)");
 
             uint256 currency_number = uints[0];
             event_controller = addr[0];
+            address fee_collector = addr[1];
             group = getGroupID(event_controller, id);
 
             if (currency_number > 0) {
@@ -484,7 +464,7 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
                 // Now that we now the number of currencies used for payment, we can verify that the required amount
                 // of arguments in uints and addr are respected
                 require(uints.length - 1 >= (currency_number * 2), "T721C::mint | not enough space on uints (1)");
-                require(addr.length - 1 >= currency_number, "T721C::mint | not enough space on addr (1)");
+                require(addr.length - 2 >= currency_number, "T721C::mint | not enough space on addr (1)");
 
                 for (uint256 currency_idx = 0; currency_idx < currency_number; ++currency_idx) {
 
@@ -496,7 +476,8 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
                         group,
                         uints[uints_idx + (currency_idx * 2)],
                         uints[uints_idx + 1 + (currency_idx * 2)],
-                        addr[addr_idx + currency_idx]
+                        addr[addr_idx + currency_idx],
+                        fee_collector
                     );
 
                 }
@@ -524,14 +505,15 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
             require(bs.length / 65 == ticket_number && bs.length % 65 == 0,
                 "T721C::mint | not enough space or invalid length on bs");
             require(addr.length - addr_idx == ticket_number, "T721C::mint | not enough space on addr (2)");
-            require(uints.length - uints_idx == ticket_number, "T721C::mint | not enough space on uints (2)");
+            require(uints.length - uints_idx == (ticket_number * 2), "T721C::mint | not enough space on uints (2)");
 
 
             for (uint256 ticket_idx = 0; ticket_idx < ticket_number; ++ticket_idx) {
 
                 // We extract arguments for one ticket
                 bytes memory signature = BytesUtil_v0.slice(bs, (ticket_idx * 65), 65);
-                uint256 code = uints[uints_idx + ticket_idx];
+                uint256 code = uints[uints_idx + (ticket_idx * 2)];
+                uint256 scope_index = uints[uints_idx + 1 + (ticket_idx * 2)];
                 bytes32 category = b32[ticket_idx];
                 address ticket_owner = addr[addr_idx + ticket_idx];
 
@@ -572,6 +554,19 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
 
         }
 
+    }
+
+    /**
+     * @notice utility for external entities to verify that event controller + event id have authority upon a ticket
+     *
+     * @param controller Address of the event controller
+     *
+     * @param id ID of the event
+     *
+     * @param ticketId ID of the ticket
+     */
+    function hasAuthorityUpon(address controller, string calldata id, uint256 ticketId) external view returns (bool) {
+        return tickets[ticketId].active && tickets[ticketId].group == getGroupID(controller, id);
     }
 
 }
