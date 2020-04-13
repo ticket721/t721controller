@@ -67,7 +67,8 @@ module.exports = {
         await ERC20.approve(T721Controller.address, 1000);
 
         {
-            const [id, b32, uints, addr, bs] = await generateMintPayload(uuid, payments, tickets, eventControllerWallet, accounts[9], signer);
+            const expiration = new Date(Date.now() + 60000);
+            const [id, b32, uints, addr, bs] = await generateMintPayload(uuid, payments, tickets, expiration, eventControllerWallet, accounts[9], signer);
 
             expect((await ERC721.balanceOf(accounts[0])).toNumber()).to.equal(0);
             expect((await ERC721.balanceOf(accounts[1])).toNumber()).to.equal(0);
@@ -95,11 +96,12 @@ module.exports = {
         }
 
         const daiWithdrawCode = 6;
+        const expiration = new Date(Date.now() + 60000);
 
         {
-            const [event_controller, id, currency, amount, target, code, signature] = await generateWithdrawPayload(eventControllerWallet, uuid, Dai.address, 900, accounts[8], daiWithdrawCode, signer);
+            const [event_controller, id, currency, amount, target, code, expiration_final, signature] = await generateWithdrawPayload(eventControllerWallet, uuid, Dai.address, 900, accounts[8], daiWithdrawCode, expiration, signer);
 
-            await expect(T721Controller.withdraw(event_controller, id, currency, amount, target, code + 1, signature)).to.eventually.be.rejectedWith('T721C::withdraw | invalid signature');
+            await expect(T721Controller.withdraw(event_controller, id, currency, amount, target, code + 1, expiration_final, signature)).to.eventually.be.rejectedWith('T721C::withdraw | invalid signature');
         }
 
 

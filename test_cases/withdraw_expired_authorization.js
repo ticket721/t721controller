@@ -1,10 +1,10 @@
-const { Authorizer, generateMintPayload, strToB32, generateAttachPayload } = require('../test/utils');
+const { Authorizer, generateMintPayload, generateWithdrawPayload } = require('../test/utils');
 const { T721C_CONTRACT_NAME } = require('../test/constants');
 const { Wallet } = require('ethers');
 
 // Mint 5 tickets, with 2 currencies
 module.exports = {
-    attach_missing_b32_for_attachment: async function attach_missing_b32_for_attachment() {
+    withdraw_expired_authorization: async function withdraw_expired_authorization() {
 
         const { accounts, expect } = this;
 
@@ -65,6 +65,7 @@ module.exports = {
 
         await Dai.approve(T721Controller.address, 1000);
         await ERC20.approve(T721Controller.address, 1000);
+
         {
             const expiration = new Date(Date.now() + 60000);
             const [id, b32, uints, addr, bs] = await generateMintPayload(uuid, payments, tickets, expiration, eventControllerWallet, accounts[9], signer);
@@ -82,47 +83,28 @@ module.exports = {
                 expect(tx.logs[idx].args.owner).to.equal(tickets[idx].owner);
 
             }
+
+            expect((await ERC721.balanceOf(accounts[0])).toNumber()).to.equal(1);
+            expect((await ERC721.balanceOf(accounts[1])).toNumber()).to.equal(1);
+            expect((await ERC721.balanceOf(accounts[2])).toNumber()).to.equal(1);
+            expect((await ERC721.balanceOf(accounts[3])).toNumber()).to.equal(1);
+            expect((await ERC721.balanceOf(accounts[4])).toNumber()).to.equal(1);
+
+            expect((await Dai.balanceOf(accounts[9])).toNumber()).to.equal(100);
+            expect((await ERC20.balanceOf(accounts[9])).toNumber()).to.equal(100);
+
         }
 
-        expect((await ERC721.balanceOf(accounts[0])).toNumber()).to.equal(1);
-        expect((await ERC721.balanceOf(accounts[1])).toNumber()).to.equal(1);
-        expect((await ERC721.balanceOf(accounts[2])).toNumber()).to.equal(1);
-        expect((await ERC721.balanceOf(accounts[3])).toNumber()).to.equal(1);
-        expect((await ERC721.balanceOf(accounts[4])).toNumber()).to.equal(1);
+        const daiWithdrawCode = 6;
+        const erc20WithdrawCode_one = 7;
+        const erc20WithdrawCode_two = 8;
+        const expiration = new Date(Date.now() - 1000);
 
-        expect((await Dai.balanceOf(accounts[9])).toNumber()).to.equal(100);
-        expect((await ERC20.balanceOf(accounts[9])).toNumber()).to.equal(100);
+        {
+            const [event_controller, id, currency, amount, target, code, expiration_final, signature] = await generateWithdrawPayload(eventControllerWallet, uuid, Dai.address, 900, accounts[8], daiWithdrawCode, expiration, signer);
 
-        const ticket_id = await ERC721.tokenOfOwnerByIndex(accounts[0], 0);
-
-        const attachments = [
-            {
-                attachment: 'beer',
-                amount: 5,
-                ticket_id,
-                ticket_owner: accounts[0],
-                code: 6
-            },
-            {
-                attachment: 'fries',
-                amount: 2,
-                ticket_id,
-                ticket_owner: accounts[0],
-                code: 7
-            }
-        ];
-
-        await Dai.mint(accounts[0], 1000);
-        await ERC20.mint(accounts[0], 1000);
-
-        await Dai.approve(T721Controller.address, 1000);
-        await ERC20.approve(T721Controller.address, 1000);
-
-        const expiration = new Date(Date.now() + 60000);
-        const [id, b32, uints, addr, bs] = await generateAttachPayload(uuid, payments, attachments, expiration, eventControllerWallet, accounts[9], signer);
-
-        await expect(T721Controller.attach(id, [], uints, addr, bs)).to.eventually.be.rejectedWith('T721C::attach | not enough space on b32');
-
+            await expect(T721Controller.withdraw(event_controller, id, currency, amount, target, code, expiration_final, signature)).to.eventually.be.rejectedWith('T721::withdraw | authorization expired');
+        }
 
     },
 };
