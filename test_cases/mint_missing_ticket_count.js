@@ -66,7 +66,8 @@ module.exports = {
         await Dai.approve(T721Controller.address, 1000);
         await ERC20.approve(T721Controller.address, 1000);
 
-        const [id, b32, uints, addr, bs] = await generateMintPayload(uuid, payments, tickets, eventControllerWallet, accounts[9], signer);
+        const expiration = new Date(Date.now() + 60000);
+        const [id, b32, uints, addr, bs] = await generateMintPayload(uuid, payments, tickets, expiration, eventControllerWallet, accounts[9], signer);
 
         expect((await ERC721.balanceOf(accounts[0])).toNumber()).to.equal(0);
         expect((await ERC721.balanceOf(accounts[1])).toNumber()).to.equal(0);
@@ -74,7 +75,7 @@ module.exports = {
         expect((await ERC721.balanceOf(accounts[3])).toNumber()).to.equal(0);
         expect((await ERC721.balanceOf(accounts[4])).toNumber()).to.equal(0);
 
-        await expect(T721Controller.mint(id, b32, uints.slice(0, 1 + (payments.length * 2)), addr, bs)).to.eventually.be.rejectedWith('T721C::mint | missing ticketCount on uints');
+        await expect(T721Controller.mint(id, b32, uints.slice(0, 2 + (payments.length * 2)), addr, bs)).to.eventually.be.rejectedWith('T721C::mint | missing ticketCount on uints');
 
     },
 };

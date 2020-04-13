@@ -4,7 +4,7 @@ const { Wallet } = require('ethers');
 
 // Mint 5 tickets, with 2 currencies
 module.exports = {
-    attach_missing_b32_for_attachment: async function attach_missing_b32_for_attachment() {
+    attach_expired_authorization: async function attach_expired_authorization() {
 
         const { accounts, expect } = this;
 
@@ -118,11 +118,10 @@ module.exports = {
         await Dai.approve(T721Controller.address, 1000);
         await ERC20.approve(T721Controller.address, 1000);
 
-        const expiration = new Date(Date.now() + 60000);
+        const expiration = new Date(Date.now() - 1000);
         const [id, b32, uints, addr, bs] = await generateAttachPayload(uuid, payments, attachments, expiration, eventControllerWallet, accounts[9], signer);
 
-        await expect(T721Controller.attach(id, [], uints, addr, bs)).to.eventually.be.rejectedWith('T721C::attach | not enough space on b32');
-
+        await expect(T721Controller.attach(id, b32, uints, addr, bs)).to.eventually.be.rejectedWith('T721C::attach | authorization expired');
 
     },
 };

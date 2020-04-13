@@ -93,7 +93,7 @@ const encodeAddress = (address) => {
     return web3.eth.abi.encodeParameters(['address'], [address]).slice(2);
 };
 
-const generateMintPayload = async (uuid, payments, tickets, eventController, fee_collector, signer) => {
+const generateMintPayload = async (uuid, payments, tickets, expiration, eventController, fee_collector, signer) => {
 
     const groupId = encodeAndHash(['address', 'string'], [eventController.address, uuid]);
 
@@ -102,9 +102,12 @@ const generateMintPayload = async (uuid, payments, tickets, eventController, fee
     const uints = [];
     let bs = '0x';
 
+    expiration = Math.floor(expiration.getTime() / 1000);
+
     let prices = '';
 
     uints.push(payments.length);
+    uints.push(`0x${expiration.toString(16)}`);
     addr.push(eventController.address);
     addr.push(fee_collector);
 
@@ -127,7 +130,7 @@ const generateMintPayload = async (uuid, payments, tickets, eventController, fee
         addr.push(ticket.owner);
         b32.push(strToB32(ticket.category));
 
-        const hash = encodeAndHash(['string', 'bytes', 'bytes32', 'bytes32', 'uint256'], ['mint', `0x${prices}`, groupId, strToB32(ticket.category), ticket.code]);
+        const hash = encodeAndHash(['string', 'bytes', 'bytes32', 'bytes32', 'uint256', 'uint256'], ['mint', `0x${prices}`, groupId, strToB32(ticket.category), ticket.code, `0x${expiration.toString(16)}`]);
 
         const authorization = {
             emitter: eventController.address,
@@ -146,13 +149,15 @@ const generateMintPayload = async (uuid, payments, tickets, eventController, fee
 
 };
 
-const generateWithdrawPayload = async (event_controller_wallet, id, currency, amount, target, code, signer) => {
+const generateWithdrawPayload = async (event_controller_wallet, id, currency, amount, target, code, expiration, signer) => {
+
+    expiration = Math.floor(expiration.getTime() / 1000);
 
     const groupId = getGroupID(event_controller_wallet.address, id);
 
     const hash = encodeAndHash(
-        ['string', 'bytes32', 'address', 'uint256', 'address', 'uint256'],
-        ['withdraw', groupId, currency, amount, target, code]
+        ['string', 'bytes32', 'address', 'uint256', 'address', 'uint256', 'uint256'],
+        ['withdraw', groupId, currency, amount, target, code, `0x${expiration.toString(16)}`]
     );
 
     const authorization = {
@@ -171,12 +176,15 @@ const generateWithdrawPayload = async (event_controller_wallet, id, currency, am
         amount,
         target,
         code,
+        expiration,
         signature.hex
     ]
 
 };
 
-const generateAttachPayload = async (uuid, payments, attachments, eventController, fee_collector, signer) => {
+const generateAttachPayload = async (uuid, payments, attachments, expiration, eventController, fee_collector, signer) => {
+
+    expiration = Math.floor(expiration.getTime() / 1000);
 
     const b32 = [];
     const addr = [];
@@ -186,6 +194,7 @@ const generateAttachPayload = async (uuid, payments, attachments, eventControlle
     let prices = '';
 
     uints.push(payments.length);
+    uints.push(`0x${expiration.toString(16)}`);
     addr.push(eventController.address);
     addr.push(fee_collector);
 
@@ -210,8 +219,8 @@ const generateAttachPayload = async (uuid, payments, attachments, eventControlle
         b32.push(strToB32(attachment.attachment));
 
         const hash = encodeAndHash(
-            ['string', 'bytes', 'bytes32', 'uint256', 'uint256'],
-            ['attach', `0x${prices}`, strToB32(attachment.attachment), attachment.amount, attachment.code]
+            ['string', 'bytes', 'bytes32', 'uint256', 'uint256', 'uint256'],
+            ['attach', `0x${prices}`, strToB32(attachment.attachment), attachment.amount, attachment.code, `0x${expiration.toString(16)}`]
         );
 
         const authorization = {

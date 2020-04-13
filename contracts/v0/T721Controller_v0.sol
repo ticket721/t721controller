@@ -91,6 +91,8 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
      *
      * @param code The authorization code
      *
+     * @param expiration Expiration timestamp of the authorization
+     *
      * @param signature The signature to use to withdraw
      */
     function withdraw(
@@ -100,6 +102,7 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
         uint256 amount,
         address target,
         uint256 code,
+        uint256 expiration,
         bytes calldata signature
     ) external {
 
@@ -112,10 +115,12 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
                 currency,
                 amount,
                 target,
-                code
+                code,
+                expiration
             )
         );
 
+        require(block.timestamp <= expiration, "T721::withdraw | authorization expired");
         require(verify(Authorization(event_controller, target, hash), signature) == event_controller,
             "T721C::withdraw | invalid signature");
         require(balances[group][currency] >= amount, "T721C::withdraw | balance too low");
@@ -201,6 +206,7 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
      *
      *                            +> These are the arguments used for the payment logics
      *        | currency_count    | < This is the number of currency to use for the payment (in our example: 2)
+     *        | expiration        | < This is the authorization expiration timestamp
      *        | currency_1_price  | < For each currency, the price paid to the organizer
      *        | currency_1_fee    | < For each currency, the extra fee for T721
      *        | currency_2_price  |
@@ -256,14 +262,14 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
         bytes memory bs
     ) public {
 
-        uint256 uints_idx = 1;
+        uint256 uints_idx = 2;
         uint256 addr_idx = 2;
         bytes memory prices = "";
         address event_controller;
 
         // Payment Processing
         {
-            require(uints.length >= 1, "T721C::attach | missing uints[0] (currency number)");
+            require(uints.length >= 2, "T721C::attach | missing uints[0 & 1] (currency number & expiration)");
             require(addr.length >= 2, "T721C::attach | missing addr[0] (event controller and fee_collector)");
 
             uint256 currency_number = uints[0];
@@ -330,13 +336,17 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
                     {
                         uint256 code = uints[uints_idx + 1 + (attachment_idx * 3)];
                         bytes32 name = b32[attachment_idx];
+                        uint256 expiration = uints[1];
+
+                        require(block.timestamp <= expiration, "T721C::attach | authorization expired");
 
                         encoded = abi.encode(
                             "attach",
                             prices,
                             name,
                             amount,
-                            code
+                            code,
+                            expiration
                         );
 
                         consumeCode(event_controller, code);
@@ -392,6 +402,7 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
      *
      *                            +> These are the arguments used for the payment logics
      *        | currency_count    | < This is the number of currency to use for the payment (in our example: 2)
+     *        | expiration        | < This is the expiration timestamp of the authorization
      *        | currency_1_price  | < For each currency, the price paid to the organizer
      *        | currency_1_fee    | < For each currency, the extra fee for T721
      *        | currency_2_price  |
@@ -441,7 +452,7 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
         bytes memory bs
     ) public {
 
-        uint256 uints_idx = 1;
+        uint256 uints_idx = 2;
         uint256 addr_idx = 2;
         bytes memory prices = "";
         address event_controller;
@@ -451,7 +462,7 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
         {
 
             // We verify that the bare minimum arguments are here before accessing them
-            require(uints.length >= 1, "T721C::mint | missing uints[0] (currency number)");
+            require(uints.length >= 2, "T721C::mint | missing uints[0 & 1] (currency number & expiration)");
             require(addr.length >= 2, "T721C::mint | missing addr[0] (event controller)");
 
             uint256 currency_number = uints[0];
@@ -463,7 +474,7 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
 
                 // Now that we now the number of currencies used for payment, we can verify that the required amount
                 // of arguments in uints and addr are respected
-                require(uints.length - 1 >= (currency_number * 2), "T721C::mint | not enough space on uints (1)");
+                require(uints.length - 2 >= (currency_number * 2), "T721C::mint | not enough space on uints (1)");
                 require(addr.length - 2 >= currency_number, "T721C::mint | not enough space on addr (1)");
 
                 for (uint256 currency_idx = 0; currency_idx < currency_number; ++currency_idx) {
@@ -520,12 +531,17 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
                 // Signature Verification Scope
                 {
 
+                    uint256 expiration = uints[1];
+
+                    require(block.timestamp <= expiration, "T721C::mint | authorization expired");
+
                     bytes32 hash = keccak256(abi.encode(
                             "mint",
                             prices,
                             group,
                             category,
-                            code
+                            code,
+                            expiration
                         ));
 
                     // Core verification, this is what controls the flow of minted tickets

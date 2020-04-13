@@ -66,7 +66,8 @@ module.exports = {
         await Dai.approve(T721Controller.address, 1000);
         await ERC20.approve(T721Controller.address, 1000);
         {
-            const [id, b32, uints, addr, bs] = await generateMintPayload(uuid, payments, tickets, eventControllerWallet, accounts[9], signer);
+            const expiration = new Date(Date.now() + 60000);
+            const [id, b32, uints, addr, bs] = await generateMintPayload(uuid, payments, tickets, expiration, eventControllerWallet, accounts[9], signer);
 
             expect((await ERC721.balanceOf(accounts[0])).toNumber()).to.equal(0);
             expect((await ERC721.balanceOf(accounts[1])).toNumber()).to.equal(0);
@@ -103,7 +104,8 @@ module.exports = {
         await Dai.approve(T721Controller.address, 1000);
         await ERC20.approve(T721Controller.address, 1000);
 
-        const [id, b32, uints, addr, bs] = await generateAttachPayload(uuid, payments, attachments, eventControllerWallet, accounts[9], signer);
+        const expiration = new Date(Date.now() + 60000);
+        const [id, b32, uints, addr, bs] = await generateAttachPayload(uuid, payments, attachments, expiration, eventControllerWallet, accounts[9], signer);
 
         await expect(T721Controller.attach(id, b32, uints, addr, bs)).to.eventually.be.rejectedWith('T721C::attach | why would you attach 0 attachments ?');
 
