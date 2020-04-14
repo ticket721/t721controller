@@ -16,14 +16,24 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
         bytes32 indexed category,
         address indexed owner,
         uint256 ticket_id,
-        address buyer
+        address buyer,
+        uint256 code
     );
 
     event Attach(
         bytes32 indexed group,
         bytes32 indexed attachment,
         uint256 indexed ticket_id,
-        uint256 amount
+        uint256 amount,
+        uint256 code
+    );
+
+    event Withdraw(
+        address indexed trigger,
+        address indexed target,
+        address indexed currency,
+        uint256 amount,
+        uint256 code
     );
 
     struct Currency {
@@ -130,6 +140,7 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
 
         balances[group][currency] = balances[group][currency].sub(amount);
 
+        emit Withdraw(msg.sender, target, currency, amount, code);
     }
 
     /**
@@ -334,9 +345,9 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
                     bytes memory encoded;
 
                     {
-                        uint256 code = uints[uints_idx + 1 + (attachment_idx * 3)];
                         bytes32 name = b32[attachment_idx];
                         uint256 expiration = uints[1];
+                        uint256 code = uints[uints_idx + 1 + (attachment_idx * 3)];
 
                         require(block.timestamp <= expiration, "T721C::attach | authorization expired");
 
@@ -367,8 +378,16 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
 
                     bytes32 group = getGroupID(event_controller, id);
                     bytes32 name = b32[attachment_idx];
+                    uint256 code = uints[uints_idx + 1 + (attachment_idx * 3)];
+                    uint256 ticket_id = uints[uints_idx + 2 + (attachment_idx * 3)];
 
-                    emit Attach(group, name, uints[uints_idx + 2 + (attachment_idx * 3)], amount);
+                    emit Attach(
+                        group,
+                        name,
+                        ticket_id,
+                        amount,
+                        code
+                    );
 
                 }
 
@@ -564,7 +583,7 @@ contract T721Controller_v0 is T721ControllerDomain_v0 {
                         });
 
                     // We emit a Mint event that is caught by the infrastructure
-                    emit Mint(group, category, ticket_owner, ticket_id, msg.sender);
+                    emit Mint(group, category, ticket_owner, ticket_id, msg.sender, code);
                 }
             }
 

@@ -118,7 +118,7 @@ module.exports = {
         await Dai.approve(T721Controller.address, 1000);
         await ERC20.approve(T721Controller.address, 1000);
 
-        const expiration = new Date(Date.now() - 1000);
+        const expiration = new Date(Date.now() - 10000);
         const [id, b32, uints, addr, bs] = await generateAttachPayload(uuid, payments, attachments, expiration, eventControllerWallet, accounts[9], signer);
 
         await expect(T721Controller.attach(id, b32, uints, addr, bs)).to.eventually.be.rejectedWith('T721C::attach | authorization expired');
