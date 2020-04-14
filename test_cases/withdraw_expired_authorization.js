@@ -96,9 +96,7 @@ module.exports = {
         }
 
         const daiWithdrawCode = 6;
-        const erc20WithdrawCode_one = 7;
-        const erc20WithdrawCode_two = 8;
-        const expiration = new Date(Date.now() - 1000);
+        const expiration = new Date(Date.now() - 10000);
 
         {
             const [event_controller, id, currency, amount, target, code, expiration_final, signature] = await generateWithdrawPayload(eventControllerWallet, uuid, Dai.address, 900, accounts[8], daiWithdrawCode, expiration, signer);
